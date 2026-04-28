@@ -13,26 +13,29 @@ const client = new line.Client({
 
 export const handleWebhook = async (req: Request, res: Response) => {
     const events = req.body.events;
-    if (!events || events.length === 0) return res.status(200).send("OK");
+    
+    // 👉 修正 1：統一回傳型別，改為單純 return 中斷執行
+    if (!events || events.length === 0) {
+        res.status(200).send("OK");
+        return; 
+    }
 
     await Promise.all(events.map(async (event: any) => {
         if (event.type !== "message" || event.message.type !== "text") return null;
 
         const userMsg = event.message.text;
-        // 搜尋對應的對話節點
         const snap = await db.collection("flowRules").where("nodeName", "==", userMsg).limit(1).get();
         if (snap.empty) return null;
 
         const data = snap.docs[0].data();
         let reply: any;
 
-        // 👉 按鈕轉換工具函數：處理「綠色實心」與「透明文字」
         const mapButtons = (btns: any[], style: string) => {
             return (btns || []).map((btn: any) => ({
                 type: "button",
                 height: "sm",
                 style: style === 'link' ? "link" : "primary",
-                color: style === 'link' ? "#5584C0" : "#06C755", // 連結藍 或 LINE 綠
+                color: style === 'link' ? "#5584C0" : "#06C755", 
                 action: { 
                     type: "message", 
                     label: btn.label || "未命名選項", 
@@ -41,17 +44,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }));
         };
 
-        // 核心邏輯切換
         switch (data.messageType) {
             case "flex":
-                // 萬能 Flex 引擎：支援文字 + 可選圖片 + 樣式按鈕
                 reply = {
                     type: "flex",
                     altText: "訊息送達",
                     contents: {
                         type: "bubble",
                         size: data.cardSize === 'sm' ? "micro" : "mega",
-                        // 有填圖片才顯示 Hero 區塊
                         ...(data.imageUrl ? {
                             hero: { type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" }
                         } : {}),
@@ -67,7 +67,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 break;
 
             case "carousel":
-                // 輪播選單：每一張卡片獨立處理圖片與按鈕
                 reply = {
                     type: "flex",
                     altText: "請選擇項目",
@@ -93,7 +92,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 break;
 
             case "video":
-                // 影片模式：若有文字說明則自動轉為 Flex 格式以呈現文字
                 if (data.textContent) {
                     reply = {
                         type: "flex",
@@ -115,7 +113,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                         }
                     };
                 } else {
-                    // 標準影片訊息
                     reply = {
                         type: "template", altText: "影片訊息",
                         template: {
@@ -137,5 +134,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         return client.replyMessage(event.replyToken, reply);
     }));
+
+    // 👉 修正 2：明確結束函式，使 TypeScript 型別判定一致為 void
     res.status(200).send("OK");
 };
