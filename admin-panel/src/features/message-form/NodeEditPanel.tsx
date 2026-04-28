@@ -1,109 +1,117 @@
-import { useState } from 'react'
-// 👉 拿掉了沒有用到的 Plus
+import { useState, useEffect } from 'react' // 👉 加上 useEffect
 import { X, Save, Youtube, LayoutPanelLeft, MessageSquare } from 'lucide-react'
-import { collection, addDoc } from 'firebase/firestore'
-// 👉 修正為正確的路徑：退回兩層就能找到 src/firebase.ts
-import { db } from '../../firebase'
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore' // 👉 改用讀取與更新功能
+import { db } from '../../firebase' 
 
-export default function NodeEditPanel() {
-  // 👉 建立 State 來記憶使用者在輸入框打的字
-  const [nodeName, setNodeName] = useState("教學影片：居家基礎伸展操");
+// 🎯 關鍵修正：定義面板可以接收的參數 (Props)
+interface NodeEditPanelProps {
+  nodeId?: string | null;
+}
+
+export default function NodeEditPanel({ nodeId }: NodeEditPanelProps) {
+  const [nodeName, setNodeName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 👉 建立通電的儲存函數
+  // 📡 當點選不同方塊時，自動抓取該方塊在 Firebase 的最新資料
+  useEffect(() => {
+    const fetchNodeData = async () => {
+      if (!nodeId) return;
+      setIsLoading(true);
+      try {
+        const docRef = doc(db, "flowRules", nodeId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setNodeName(data.nodeName || "");
+        }
+      } catch (error) {
+        console.error("抓取節點失敗:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchNodeData();
+  }, [nodeId]);
+
+  // ⚡ 升級儲存功能：現在會根據 nodeId 更新資料
   const handleSave = async () => {
+    if (!nodeId) return;
     setIsSaving(true);
     try {
-      // 指示 Firebase 將資料寫入名為 "flowRules" 的資料夾 (Collection) 中
-      const docRef = await addDoc(collection(db, "flowRules"), {
+      const docRef = doc(db, "flowRules", nodeId);
+      await updateDoc(docRef, {
         nodeName: nodeName,
-        messageType: "video", // 先寫死測試
-        updatedAt: new Date()
+        updatedAt: serverTimestamp() // 使用 Firebase 伺服器時間
       });
-      
-      alert(`🎉 成功通電！資料已存入 Firebase！\n雲端文件 ID: ${docRef.id}`);
+      alert("✅ 修改成功！畫布與 LINE 機器人都已同步更新。");
     } catch (error) {
-      console.error("寫入資料庫失敗:", error);
-      alert("儲存失敗，請按 F12 檢查 Console 是否有權限錯誤。");
+      console.error("更新失敗:", error);
+      alert("儲存失敗，請檢查網路或權限。");
     } finally {
       setIsSaving(false);
     }
   };
 
+  if (!nodeId) return null; // 沒選方塊時不顯示面板
+
   return (
     <div className="w-80 h-full bg-card border-l border-border flex flex-col shadow-2xl absolute right-0 top-0 z-20">
-      
-      {/* 面板標題區 */}
+      {/* 標題區 */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/30">
-        <h3 className="font-semibold text-foreground">編輯節點內容</h3>
-        <button className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary">
+        <h3 className="font-semibold text-foreground">
+          {isLoading ? "載入中..." : "編輯節點內容"}
+        </h3>
+        <button className="text-muted-foreground hover:text-foreground p-1">
           <X size={18} />
         </button>
       </div>
 
-      {/* 表單內容區 (可捲動) */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
-        
-        {/* 節點名稱 */}
+      {/* 內容區 */}
+      <div className="flex-1 p-5 flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-muted-foreground">節點名稱 (內部識別用)</label>
+          <label className="text-sm font-medium text-muted-foreground">節點名稱 (即 LINE 關鍵字)</label>
           <input 
             type="text" 
-            value={nodeName} // 👉 綁定 State
-            onChange={(e) => setNodeName(e.target.value)} // 👉 當使用者打字時更新 State
-            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            value={nodeName}
+            onChange={(e) => setNodeName(e.target.value)}
+            disabled={isLoading}
+            placeholder="請輸入關鍵字..."
+            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-ring outline-none"
           />
         </div>
 
-        {/* 訊息類型選擇 (維持 UI 展示) */}
+        {/* 類型選擇 UI (目前維持靜態展示) */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-muted-foreground">回覆訊息類型</label>
-          <div className="grid grid-cols-3 gap-2">
-            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border-2 border-transparent hover:border-border rounded-md p-2 transition-all">
-              <MessageSquare size={18} className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">純文字</span>
+          <div className="grid grid-cols-3 gap-2 opacity-50 grayscale cursor-not-allowed">
+            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border border-border rounded-md p-2">
+              <MessageSquare size={18} />
+              <span className="text-xs">純文字</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-1 bg-primary/10 border-2 border-primary rounded-md p-2 transition-all">
+            <button className="flex flex-col items-center justify-center gap-1 bg-primary/10 border border-primary rounded-md p-2">
               <Youtube size={18} className="text-primary" />
-              <span className="text-xs text-primary font-medium">影片卡片</span>
+              <span className="text-xs text-primary">影片卡片</span>
             </button>
-            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border-2 border-transparent hover:border-border rounded-md p-2 transition-all">
-              <LayoutPanelLeft size={18} className="text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">圖文選單</span>
+            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border border-border rounded-md p-2">
+              <LayoutPanelLeft size={18} />
+              <span className="text-xs">圖文選單</span>
             </button>
           </div>
         </div>
-
-        {/* 影片設定區塊 (維持 UI 展示) */}
-        <div className="flex flex-col gap-4 p-4 border border-border rounded-lg bg-secondary/20">
-          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Youtube size={16} className="text-destructive" />
-            影片懶人包設定
-          </h4>
-          <div className="flex flex-col gap-2">
-            <label className="text-xs text-muted-foreground">卡片主標題</label>
-            <input type="text" defaultValue="每天五分鐘，遠離心血管疾病" className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-xs text-muted-foreground">YouTube 影片網址</label>
-            <input type="url" placeholder="https://youtube.com/..." className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-        </div>
-
       </div>
 
-      {/* 底部儲存區 */}
+      {/* 底部按鈕 */}
       <div className="p-4 border-t border-border bg-card">
         <button 
-          onClick={handleSave} // 👉 綁定點擊事件！
-          disabled={isSaving}  // 👉 儲存中鎖定按鈕防止連點
+          onClick={handleSave}
+          disabled={isSaving || isLoading}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
         >
           <Save size={18} />
-          {isSaving ? "努力寫入雲端中..." : "儲存節點設定"}
+          {isSaving ? "更新中..." : "儲存並同步"}
         </button>
       </div>
-
     </div>
   )
 }
