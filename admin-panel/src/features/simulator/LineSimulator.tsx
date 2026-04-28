@@ -1,3 +1,5 @@
+import { Youtube, ExternalLink } from 'lucide-react'; // 👉 補上 Youtube
+
 export default function LineSimulator({ data }: { data: any }) {
   if (!data || !data.nodeName) {
     return (
@@ -13,16 +15,16 @@ export default function LineSimulator({ data }: { data: any }) {
   const previewImg = data.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400";
 
   return (
-    <div className="w-full bg-[#7494C0] rounded-2xl overflow-hidden flex flex-col font-sans border border-white/10">
+    <div className="w-full bg-[#7494C0] rounded-2xl overflow-hidden flex flex-col font-sans border border-white/10 shadow-lg">
       <div className="bg-[#273246] text-white px-4 py-2 text-[10px] font-bold flex justify-between">
         <span>LINE PREVIEW</span>
-        <span className="text-[#06C755]">{data.messageType?.toUpperCase()}</span>
+        <span className="text-[#06C755] uppercase tracking-widest">{data.messageType}</span>
       </div>
 
-      <div className="p-3 space-y-3 min-h-[200px]">
+      <div className="p-3 space-y-3 min-h-[220px]">
         {/* User Side */}
         <div className="flex justify-end">
-          <div className="bg-[#A0F080] rounded-xl rounded-tr-none px-3 py-1.5 text-xs shadow-sm max-w-[80%] text-slate-800">
+          <div className="bg-[#A0F080] rounded-xl rounded-tr-none px-3 py-1.5 text-[11px] shadow-sm max-w-[80%] text-slate-800 font-medium">
             {data.nodeName}
           </div>
         </div>
@@ -32,21 +34,23 @@ export default function LineSimulator({ data }: { data: any }) {
           <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[9px] font-bold text-[#7494C0] flex-shrink-0">BOT</div>
           <div className="flex-1 space-y-2">
             {data.messageType === 'text' && (
-              <div className="bg-white rounded-xl rounded-tl-none px-3 py-2 text-xs shadow-sm inline-block text-slate-700">
+              <div className="bg-white rounded-xl rounded-tl-none px-3 py-2 text-[11px] shadow-sm inline-block text-slate-700">
                 {data.textContent || "文字內容未設定..."}
               </div>
             )}
 
             {(data.messageType === 'video' || data.messageType === 'image' || data.messageType === 'carousel') && (
-              <div className={`${cardWidth} bg-white rounded-xl overflow-hidden shadow-xl border border-gray-100 transition-all duration-500`}>
+              <div className={`${cardWidth} bg-white rounded-xl overflow-hidden shadow-xl border border-gray-100 transition-all duration-300`}>
                 <div className={`${isSquare ? 'aspect-square' : 'aspect-video'} bg-gray-100 relative`}>
                   <img src={previewImg} className="w-full h-full object-cover" alt="LinePreview" />
                   {data.messageType === 'video' && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Youtube className="text-white fill-red-600" size={32} /></div>}
                 </div>
                 <div className="p-3 space-y-1">
-                  <div className="font-bold text-xs text-slate-800 truncate">{data.videoTitle || "標題"}</div>
-                  <div className="text-[10px] text-red-500 font-black">{data.price || "即將推出"}</div>
-                  <div className="mt-2 bg-[#06C755] text-white text-center py-1.5 rounded-lg text-[9px] font-bold">查看詳情</div>
+                  <div className="font-bold text-xs text-slate-800 truncate">{data.videoTitle || "未設定標題"}</div>
+                  <div className="text-[10px] text-red-500 font-black">查看詳情</div>
+                  <div className="mt-2 bg-[#06C755] text-white text-center py-1.5 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1">
+                    <ExternalLink size={10} /> 點擊操作
+                  </div>
                 </div>
               </div>
             )}
