@@ -1,14 +1,4 @@
-import { Request, Response } from "express";
-import * as line from "@line/bot-sdk";
-import * as admin from "firebase-admin";
-
-if (!admin.apps.length) { admin.initializeApp(); }
-const db = admin.firestore();
-
-const client = new line.Client({
-    channelAccessToken: "AYVtEDZdBNI2Uzy+4zu1+FhNHZ7Ly4b6v69Hz2swC3ntdpS+3vdLcMZmescCUSPCIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12fnVxs+Nrlcbg2sX/Tvkxj3ARK4kpd0myiKqEWLTL0ApgdB04t89/1O/w1cDnyilFU=",
-    channelSecret: "14c91b3caaa31d8583e3175dfb9c052f"
-});
+// ... 前面引入與初始化不變 ...
 
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
@@ -26,33 +16,35 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const data = snapshot.docs[0].data();
             let reply: line.Message;
 
-            // 👉 處理 Carousel (輪播卡片) 邏輯
-            if (data.messageType === 'carousel' && data.cards?.length > 0) {
+            const actions: any[] = (data.buttons || []).slice(0, 4).map((btn: any) => ({
+                type: "message",
+                label: btn.label || "按鈕",
+                text: btn.target || "無效"
+            }));
+
+            // 👉 加入比例設定
+            const imageAspectRatio = data.imageAspectRatio || 'rectangle'; 
+
+            if (data.messageType === "video" || data.messageType === "image") {
                 reply = {
                     type: "template",
-                    altText: "請查看多樣化選單",
+                    altText: "新訊息已送達",
                     template: {
-                        type: "carousel",
-                        columns: data.cards.map((card: any) => ({
-                            thumbnailImageUrl: card.imageUrl || "https://via.placeholder.com/800",
-                            title: card.title || "未命名卡片",
-                            text: card.description || "點擊下方按鈕進行下一步",
-                            actions: (card.buttons || []).slice(0, 3).map((btn: any) => ({
-                                type: "message",
-                                label: btn.label || "了解更多",
-                                text: btn.target || "無效目標"
-                            }))
-                        }))
+                        type: "buttons",
+                        imageAspectRatio: imageAspectRatio, // 👉 LINE 官方屬性實裝！
+                        thumbnailImageUrl: data.imageUrl || "https://via.placeholder.com/800",
+                        title: data.videoTitle || "教學內容",
+                        text: "請選擇以下動作：",
+                        actions: actions.length > 0 ? actions : [{ type: "message", label: "返回主選單", text: "開始" }]
                     }
                 };
             } else {
-                // 原有的單一卡片處理邏輯 (Video/Image/Text)
-                // ... (保持原本穩定運行的邏輯) ...
                 reply = { type: "text", text: data.textContent || "內容未設定" };
             }
 
             return client.replyMessage(event.replyToken, reply);
         }));
+
         res.status(200).send("OK");
     } catch (err) { res.status(500).send("Error"); }
 };
