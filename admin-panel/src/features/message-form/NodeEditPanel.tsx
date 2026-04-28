@@ -51,8 +51,8 @@ export default function NodeEditPanel({ nodeId, onClose }: NodeEditPanelProps) {
 
   // 新增按鈕邏輯
   const handleAddButton = () => {
-    if (buttons.length >= 5) {
-      alert("最多只能設定 5 個按鈕喔！");
+    if (buttons.length >= 4) {
+      alert("最多只能設定 4 個按鈕喔！");
       return;
     }
     setButtons([...buttons, { label: "", target: "" }]);
