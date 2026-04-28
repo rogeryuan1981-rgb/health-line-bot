@@ -20,30 +20,30 @@ export default function LineSimulator({ data }: { data: any }) {
       </div>
 
       <div className="p-4 space-y-4 min-h-[200px]">
-        {/* 用戶訊息 */}
+        {/* User Side */}
         <div className="flex justify-end">
           <div className="bg-[#A0F080] rounded-xl rounded-tr-none px-3 py-1.5 text-xs shadow-sm max-w-[80%] text-slate-800 font-medium">
             {data.nodeName}
           </div>
         </div>
 
-        {/* 機器人訊息 */}
+        {/* Bot Side */}
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[9px] font-bold text-[#7494C0] flex-shrink-0 shadow-sm">BOT</div>
           
           <div className="flex-1 space-y-2">
             {/* 文字模式 */}
             {data.messageType === 'text' && (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <div className="bg-white rounded-xl rounded-tl-none px-3 py-2 text-xs shadow-sm inline-block text-slate-700 whitespace-pre-wrap">
                   {data.textContent || "輸入回覆文字..."}
                 </div>
-                {/* 文字的附加選項按鈕 */}
+                {/* 👉 一般按鈕 (Quick Reply)：圓角膠囊狀，灰色調 */}
                 {hasButtons && (
-                  <div className="flex flex-col gap-1 w-full max-w-[200px] mt-1">
+                  <div className="flex flex-wrap gap-1.5 pt-1">
                     {data.buttons.map((btn: any, i: number) => (
-                      <div key={i} className="bg-white/80 hover:bg-white text-[#5584C0] text-[10px] font-bold text-center py-2 rounded-full shadow-sm border border-white/50 cursor-pointer">
-                        {btn.label || `選項 ${i+1}`}
+                      <div key={i} className="bg-white text-slate-700 text-[10px] font-bold text-center px-3 py-1.5 rounded-full shadow-sm border border-slate-200">
+                        {btn.label || `一般選項 ${i+1}`}
                       </div>
                     ))}
                   </div>
@@ -51,7 +51,7 @@ export default function LineSimulator({ data }: { data: any }) {
               </div>
             )}
 
-            {/* 圖片/影片模式 */}
+            {/* 圖片/影片模式 (單一卡片) */}
             {(data.messageType === 'video' || data.messageType === 'image') && (
               <div className={`${cardWidth} bg-white rounded-xl overflow-hidden shadow-xl border border-gray-100`}>
                 <div className="aspect-video bg-gray-100 relative">
@@ -69,11 +69,12 @@ export default function LineSimulator({ data }: { data: any }) {
                       {data.textContent && <div className="text-[10px] text-slate-500 mt-1 line-clamp-2">{data.textContent}</div>}
                     </div>
                   )}
+                  {/* 👉 綠色按鈕：實心綠色大按鈕，佔滿寬度 */}
                   {hasButtons && (
-                    <div className="space-y-1 pt-1">
+                    <div className="space-y-1.5 pt-1 border-t border-gray-100 mt-2">
                       {data.buttons.map((btn: any, i: number) => (
-                        <div key={i} className="bg-[#06C755]/10 text-[#06C755] text-center py-1.5 rounded-lg text-[10px] font-bold">
-                          {btn.label || "未命名按鈕"}
+                        <div key={i} className="bg-[#06C755] text-white text-center py-2 rounded-lg text-[10px] font-bold shadow-sm">
+                          {btn.label || "卡片按鈕"}
                         </div>
                       ))}
                     </div>
@@ -93,11 +94,13 @@ export default function LineSimulator({ data }: { data: any }) {
                      <div className="p-3 space-y-2">
                         <div className="font-bold text-xs text-slate-800 truncate">{card.title || "卡片標題"}</div>
                         <div className="text-[10px] text-red-500 font-bold">{card.price || "詳情"}</div>
+                        
+                        {/* 👉 綠色按鈕 (輪播專用) */}
                         {card.buttons && card.buttons.length > 0 && (
-                          <div className="space-y-1 pt-1">
+                          <div className="space-y-1.5 pt-1 border-t border-gray-100 mt-2">
                             {card.buttons.map((btn: any, i: number) => (
-                              <div key={i} className="bg-[#06C755]/10 text-[#06C755] text-center py-1.5 rounded-lg text-[10px] font-bold">
-                                {btn.label || "未命名按鈕"}
+                              <div key={i} className="bg-[#06C755] text-white text-center py-2 rounded-lg text-[10px] font-bold shadow-sm">
+                                {btn.label || "卡片按鈕"}
                               </div>
                             ))}
                           </div>
