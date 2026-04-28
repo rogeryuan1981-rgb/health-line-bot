@@ -1,25 +1,26 @@
-# 1. 建立專案主資料夾並進入
-mkdir health-line-bot
-cd health-line-bot
-
-# 2. 初始化 Git 版本控制
-git init
-
-# 3. 建立後端與前端的基礎資料夾
-mkdir functions
-mkdir admin-panel
-
-# 4. 建立一份基礎的 .gitignore 檔案 (忽略 node_modules 與環境變數檔)
-echo "node_modules/" > .gitignore
-echo ".env" >> .gitignore
-echo ".DS_Store" >> .gitignore
-
-# 5. 提交第一次 commit
-git add .
-git commit -m "chore: 初始化專案結構"
-
-# 6. 連結您的 GitHub 儲存庫並推送到主分支
-# ⚠️ 請將下方的 <您的GitHub帳號> 替換為您的實際帳號
-git branch -M main
-git remote add origin https://github.com/<您的GitHub帳號>/health-line-bot.git
-git push -u origin main
+{
+  "name": "health-bot-functions",
+  "description": "預防保健客服 LINE Webhook 後端邏輯",
+  "engines": {
+    "node": "18"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "@line/bot-sdk": "^8.2.0",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.0",
+    "typescript": "^5.0.0"
+  },
+  "private": true
+}
