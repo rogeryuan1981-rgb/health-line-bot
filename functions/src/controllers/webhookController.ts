@@ -1,50 +1,50 @@
-// ... 前面引入與初始化不變 ...
+// ... 前面初始化不變 ...
 
 export const handleWebhook = async (req: Request, res: Response) => {
-    try {
-        const events = req.body.events;
-        if (!events || events.length === 0) return res.status(200).send("OK");
+    // ... 取得資料邏輯不變 ...
+    const data = snapshot.docs[0].data();
+    
+    // 👉 組裝 Flex Message 輪播
+    const flexContents = (data.cards || []).map((card: any) => ({
+        type: "bubble",
+        size: data.cardSize === 'sm' ? "micro" : "mega", // 👉 控制大小的關鍵！
+        hero: {
+            type: "image",
+            url: card.imageUrl || "https://via.placeholder.com/800",
+            size: "full",
+            aspectRatio: "20:13",
+            aspectMode: "cover"
+        },
+        body: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+                { type: "text", text: card.title || "品名", weight: "bold", size: "sm" },
+                { type: "text", text: card.price || "價格", size: "xs", color: "#ff0000", weight: "bold", margin: "sm" }
+            ]
+        },
+        footer: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+                {
+                    type: "button",
+                    style: "primary",
+                    color: "#06C755", // 👉 您的綠色按鈕
+                    action: { type: "message", label: data.cardSize === 'sm' ? "訂購" : "點我訂購", text: card.title }
+                }
+            ]
+        }
+    }));
 
-        await Promise.all(events.map(async (event: any) => {
-            if (event.type !== "message" || event.message.type !== "text") return null;
+    const reply: line.FlexMessage = {
+        type: "flex",
+        altText: "今日菜單已送達",
+        contents: {
+            type: "carousel",
+            contents: flexContents
+        }
+    };
 
-            const userMessage = event.message.text;
-            const snapshot = await db.collection("flowRules").where("nodeName", "==", userMessage).limit(1).get();
-
-            if (snapshot.empty) return null;
-
-            const data = snapshot.docs[0].data();
-            let reply: line.Message;
-
-            const actions: any[] = (data.buttons || []).slice(0, 4).map((btn: any) => ({
-                type: "message",
-                label: btn.label || "按鈕",
-                text: btn.target || "無效"
-            }));
-
-            // 👉 加入比例設定
-            const imageAspectRatio = data.imageAspectRatio || 'rectangle'; 
-
-            if (data.messageType === "video" || data.messageType === "image") {
-                reply = {
-                    type: "template",
-                    altText: "新訊息已送達",
-                    template: {
-                        type: "buttons",
-                        imageAspectRatio: imageAspectRatio, // 👉 LINE 官方屬性實裝！
-                        thumbnailImageUrl: data.imageUrl || "https://via.placeholder.com/800",
-                        title: data.videoTitle || "教學內容",
-                        text: "請選擇以下動作：",
-                        actions: actions.length > 0 ? actions : [{ type: "message", label: "返回主選單", text: "開始" }]
-                    }
-                };
-            } else {
-                reply = { type: "text", text: data.textContent || "內容未設定" };
-            }
-
-            return client.replyMessage(event.replyToken, reply);
-        }));
-
-        res.status(200).send("OK");
-    } catch (err) { res.status(500).send("Error"); }
-};
+    return client.replyMessage(event.replyToken, reply);
+}
