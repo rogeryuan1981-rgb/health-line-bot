@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 
-// 初始化 Firebase Admin SDK，讓我們後續可以讀寫 Firestore 資料庫裡的預防保健懶人包資料
+// 初始化 Firebase Admin SDK，讓我們後續可以讀寫 Firestore 資料庫裡的預防保健懶人包資料 
 admin.initializeApp(); 
 
 // 引入處理 LINE 訊息的核心邏輯 (下一個步驟會建立)
