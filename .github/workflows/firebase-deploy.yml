@@ -3,9 +3,9 @@ name: 部署 Firebase Functions
 on:
   push:
     branches:
-      - main  # 當您在 GitHub 儲存檔案（Commit）到 main 分支時觸發
+      - main
     paths:
-      - 'functions/**'  # 只有當後端程式碼有變動時才執行
+      - 'functions/**'
 
 jobs:
   build_and_deploy:
@@ -19,15 +19,10 @@ jobs:
         with:
           node-version: 24
 
-      - name: 安裝後端套件
-        run: |
-          cd functions
-          npm install
-
       - name: 部署至 Firebase
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only functions
         env:
-          # 這裡需要用到 Firebase 的金鑰，下一步我會教您如何取得並設定
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          # 使用我們剛才設定的服務帳號金鑰
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
