@@ -1,42 +1,141 @@
-// ... 初始化保持不變 ...
+import { Request, Response } from "express";
+import * as line from "@line/bot-sdk";
+import * as admin from "firebase-admin";
+
+if (!admin.apps.length) { admin.initializeApp(); }
+const db = admin.firestore();
+
+// ⚠️ 羅傑大大注意：這裡請務必維持你「原本」的 Token 寫法！
+const client = new line.Client({ 
+    channelAccessToken: "AYVtEDZdBNI2Uzy+4zu1+FhNHZ7Ly4b6v69Hz2swC3ntdpS+3vdLcMZmescCUSPCIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12fnVxs+Nrlcbg2sX/Tvkxj3ARK4kpd0myiKqEWLTL0ApgdB04t89/1O/w1cDnyilFU=", 
+    channelSecret: "14c91b3caaa31d8583e3175dfb9c052f" 
+});
 
 export const handleWebhook = async (req: Request, res: Response) => {
-    // ... 取得資料邏輯 ...
-    const data = snapshot.docs[0].data();
-    let reply: any;
+    const events = req.body.events;
+    if (!events || events.length === 0) return res.status(200).send("OK");
 
-    if (data.messageType === 'flex') {
-        // 👉 1. 決定圖片區塊 (Hero)
-        const heroSection = data.imageUrl ? {
-            type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover"
-        } : null;
+    await Promise.all(events.map(async (event: any) => {
+        if (event.type !== "message" || event.message.type !== "text") return null;
 
-        // 👉 2. 決定按鈕樣式
-        const actions = (data.buttons || []).map((btn: any) => ({
-            type: "button",
-            style: data.btnStyle === 'link' ? "link" : "primary",
-            color: data.btnStyle === 'link' ? "#5584C0" : "#06C755",
-            action: { type: "message", label: btn.label || "點擊", text: btn.target || "無效指令" }
-        }));
+        const userMsg = event.message.text;
+        // 搜尋對應的對話節點
+        const snap = await db.collection("flowRules").where("nodeName", "==", userMsg).limit(1).get();
+        if (snap.empty) return null;
 
-        reply = {
-            type: "flex",
-            altText: "新訊息送達",
-            contents: {
-                type: "bubble",
-                ...(heroSection ? { hero: heroSection } : {}), // 有圖片才加 hero
-                body: {
-                    type: "box", layout: "vertical",
-                    contents: [
-                        { type: "text", text: data.textContent || "內容", wrap: true, size: "sm", color: "#333333" },
-                        { type: "box", layout: "vertical", margin: "md", spacing: "sm", contents: actions }
-                    ]
+        const data = snap.docs[0].data();
+        let reply: any;
+
+        // 👉 按鈕轉換工具函數：處理「綠色實心」與「透明文字」
+        const mapButtons = (btns: any[], style: string) => {
+            return (btns || []).map((btn: any) => ({
+                type: "button",
+                height: "sm",
+                style: style === 'link' ? "link" : "primary",
+                color: style === 'link' ? "#5584C0" : "#06C755", // 連結藍 或 LINE 綠
+                action: { 
+                    type: "message", 
+                    label: btn.label || "未命名選項", 
+                    text: btn.target || "無效指令" 
                 }
-            }
+            }));
         };
-    } else {
-        // ... 原本的文字、圖片回覆邏輯 ...
-    }
 
-    return client.replyMessage(event.replyToken, reply);
-}
+        // 核心邏輯切換
+        switch (data.messageType) {
+            case "flex":
+                // 萬能 Flex 引擎：支援文字 + 可選圖片 + 樣式按鈕
+                reply = {
+                    type: "flex",
+                    altText: "訊息送達",
+                    contents: {
+                        type: "bubble",
+                        size: data.cardSize === 'sm' ? "micro" : "mega",
+                        // 有填圖片才顯示 Hero 區塊
+                        ...(data.imageUrl ? {
+                            hero: { type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" }
+                        } : {}),
+                        body: {
+                            type: "box", layout: "vertical", spacing: "md",
+                            contents: [
+                                { type: "text", text: data.textContent || "", wrap: true, size: "sm", color: "#333333" },
+                                { type: "box", layout: "vertical", spacing: "sm", contents: mapButtons(data.buttons, data.btnStyle) }
+                            ]
+                        }
+                    }
+                };
+                break;
+
+            case "carousel":
+                // 輪播選單：每一張卡片獨立處理圖片與按鈕
+                reply = {
+                    type: "flex",
+                    altText: "請選擇項目",
+                    contents: {
+                        type: "carousel",
+                        contents: (data.cards || []).map((card: any) => ({
+                            type: "bubble",
+                            size: data.cardSize === 'sm' ? "micro" : "mega",
+                            ...(card.imageUrl ? {
+                                hero: { type: "image", url: card.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" }
+                            } : {}),
+                            body: {
+                                type: "box", layout: "vertical", spacing: "sm",
+                                contents: [
+                                    { type: "text", text: card.title || "標題", weight: "bold", size: "sm" },
+                                    { type: "text", text: card.price || "", size: "xs", color: "#888888", wrap: true },
+                                    { type: "box", layout: "vertical", spacing: "xs", margin: "md", contents: mapButtons(card.buttons, data.btnStyle) }
+                                ]
+                            }
+                        }))
+                    }
+                };
+                break;
+
+            case "video":
+                // 影片模式：若有文字說明則自動轉為 Flex 格式以呈現文字
+                if (data.textContent) {
+                    reply = {
+                        type: "flex",
+                        altText: "影音訊息",
+                        contents: {
+                            type: "bubble",
+                            hero: { 
+                                type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover",
+                                action: { type: "uri", uri: data.videoUrl } 
+                            },
+                            body: {
+                                type: "box", layout: "vertical",
+                                contents: [{ type: "text", text: data.textContent, wrap: true, size: "sm" }]
+                            },
+                            footer: {
+                                type: "box", layout: "vertical",
+                                contents: [{ type: "button", style: "primary", color: "#FF0000", action: { type: "uri", label: "📺 觀看影片", uri: data.videoUrl } }]
+                            }
+                        }
+                    };
+                } else {
+                    // 標準影片訊息
+                    reply = {
+                        type: "template", altText: "影片訊息",
+                        template: {
+                            type: "buttons", thumbnailImageUrl: data.imageUrl, title: "影音教學", text: "點擊觀看詳細影片",
+                            actions: [{ type: "uri", label: "📺 觀看影片", uri: data.videoUrl }]
+                        }
+                    };
+                }
+                break;
+
+            case "image":
+                reply = { type: "image", originalContentUrl: data.imageUrl, previewImageUrl: data.imageUrl };
+                break;
+
+            case "text":
+            default:
+                reply = { type: "text", text: data.textContent || "無預設內容" };
+        }
+
+        return client.replyMessage(event.replyToken, reply);
+    }));
+    res.status(200).send("OK");
+};
