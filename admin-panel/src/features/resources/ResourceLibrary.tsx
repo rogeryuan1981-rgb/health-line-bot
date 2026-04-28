@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Video, Image as ImageIcon, MessageSquare, PlayCircle } from 'lucide-react';
+import { Video, Image as ImageIcon, LayoutGrid, PlayCircle } from 'lucide-react';
 
 export default function ResourceLibrary() {
   const [resources, setResources] = useState<any[]>([]);
@@ -14,42 +14,26 @@ export default function ResourceLibrary() {
   }, []);
 
   return (
-    <div className="p-8 space-y-8 bg-background h-full overflow-y-auto">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-black text-foreground">自動回覆資源庫</h2>
-          <p className="text-muted-foreground mt-1">管理所有影音教學、圖解懶人包與文字回覆資源</p>
-        </div>
-        <div className="bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-bold border border-primary/20">
-          共 {resources.length} 筆資源
-        </div>
+    <div className="p-10 h-full overflow-y-auto bg-slate-950 text-white">
+      <div className="mb-10">
+        <h2 className="text-4xl font-black italic tracking-tighter">RESOURCE LIBRARY</h2>
+        <p className="text-slate-500 font-bold uppercase text-xs mt-2">自動回覆資源總覽 · 共 {resources.length} 筆</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {resources.map((res) => (
-          <div key={res.id} className="group bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            {/* Preview Section */}
-            <div className="aspect-video bg-muted relative">
-              {res.imageUrl ? (
-                <img src={res.imageUrl} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-secondary/50">
-                   {res.messageType === 'video' ? <Video size={40} className="text-red-500"/> : <MessageSquare size={40} className="text-muted-foreground"/>}
-                </div>
-              )}
-              {res.messageType === 'video' && <PlayCircle className="absolute top-2 right-2 text-white fill-red-600 shadow-lg" size={24}/>}
+          <div key={res.id} className="bg-slate-900 rounded-3xl border border-white/5 overflow-hidden group hover:border-[#06C755]/50 transition-all">
+            <div className="aspect-[4/3] bg-slate-800 relative">
+              <img src={res.imageUrl || res.cards?.[0]?.imageUrl || "https://via.placeholder.com/400"} className="w-full h-full object-cover opacity-60 group-hover:opacity-100" />
+              <div className="absolute top-4 left-4 bg-black/50 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest">{res.messageType}</div>
             </div>
-
-            {/* Info Section */}
-            <div className="p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${res.messageType === 'video' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                  {res.messageType}
-                </span>
-                <span className="text-[10px] text-muted-foreground italic">Key: {res.nodeName}</span>
+            <div className="p-5">
+              <h3 className="font-bold text-sm truncate">{res.nodeName}</h3>
+              <p className="text-slate-500 text-xs mt-1 truncate">{res.videoTitle || "標準自動回覆"}</p>
+              <div className="mt-4 flex gap-2">
+                {res.messageType === 'video' ? <Video size={16} className="text-red-500"/> : <ImageIcon size={16} className="text-blue-500"/>}
+                <span className="text-[10px] text-slate-600">ID: {res.id.slice(0,8)}</span>
               </div>
-              <h3 className="font-bold text-sm text-foreground truncate">{res.videoTitle || res.nodeName}</h3>
-              <p className="text-xs text-muted-foreground line-clamp-2">{res.textContent || "這是您設定的自動回覆內容..."}</p>
             </div>
           </div>
         ))}
