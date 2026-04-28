@@ -23,46 +23,90 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const userMessage = event.message.text;
             const snapshot = await db.collection("flowRules").where("nodeName", "==", userMessage).limit(1).get();
 
-            if (snapshot.empty) return;
+            if (snapshot.empty) return; // 找不到關鍵字就不回覆，或可改為回覆預設訊息
 
             const data = snapshot.docs[0].data();
-            
-            // 👉 動態解析按鈕陣列
+            let reply: line.Message;
+
+            // 1. 準備按鈕 (如果有設定的話)
             const actions: any[] = (data.buttons || []).map((btn: any) => ({
                 type: "message",
                 label: btn.label || "未命名按鈕",
-                text: btn.target || "無效觸發"
+                text: btn.target || "無效目標"
             }));
 
-            let reply: line.Message;
-
-            // 如果有按鈕，使用模板訊息
-            if (actions.length > 0) {
-                reply = {
-                    type: "template",
-                    altText: "請查看選單內容",
-                    template: {
-                        type: "buttons",
-                        thumbnailImageUrl: data.messageType === 'image' ? data.imageUrl : undefined,
-                        title: data.messageType === 'video' ? data.videoTitle : undefined,
-                        text: data.textContent || `您選擇了：${data.nodeName}\n請點擊下方按鈕：`,
-                        actions: actions.slice(0, 4) // LINE Buttons Template 限制最多 4 個，如果要 5 個以上需改用 Carousel
+            // 2. 根據設定的類型 (messageType) 來決定回覆格式
+            switch (data.messageType) {
+                case "video":
+                    // 影片一律使用 Buttons Template，確保有卡片感
+                    const videoActions = [...actions];
+                    // 如果有影片網址，強制在最前面加一個「觀看影片」按鈕
+                    if (data.videoUrl) {
+                        videoActions.unshift({ type: "uri", label: "📺 觀看教學影片", uri: data.videoUrl });
                     }
-                };
-            } else {
-                // 處理純影片或圖片
-                if (data.messageType === 'video') {
-                    reply = { type: "text", text: `影片連結：${data.videoUrl}` };
-                } else if (data.messageType === 'image') {
-                    reply = { type: "image", originalContentUrl: data.imageUrl, previewImageUrl: data.imageUrl };
-                } else {
-                    reply = { type: "text", text: data.textContent || "內容為空" };
-                }
+                    
+                    reply = {
+                        type: "template",
+                        altText: `影音教學：${data.videoTitle || '點擊觀看'}`,
+                        template: {
+                            type: "buttons",
+                            thumbnailImageUrl: data.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+                            title: data.videoTitle || "教學影片",
+                            text: "請選擇下方操作繼續：",
+                            actions: videoActions.slice(0, 4) // LINE 限制最多 4 個
+                        }
+                    };
+                    break;
+
+                case "image":
+                    if (actions.length > 0) {
+                        // 有按鈕時，使用帶圖的 Buttons Template
+                        reply = {
+                            type: "template",
+                            altText: "請查看圖片說明",
+                            template: {
+                                type: "buttons",
+                                thumbnailImageUrl: data.imageUrl || "https://via.placeholder.com/800",
+                                text: data.textContent || "點擊下方按鈕：",
+                                actions: actions.slice(0, 4)
+                            }
+                        };
+                    } else {
+                        // 沒按鈕時，發送純圖片
+                        reply = {
+                            type: "image",
+                            originalContentUrl: data.imageUrl || "https://via.placeholder.com/800",
+                            previewImageUrl: data.imageUrl || "https://via.placeholder.com/800"
+                        };
+                    }
+                    break;
+
+                case "text":
+                default:
+                    if (actions.length > 0) {
+                        // 有按鈕時，發送文字選單卡片
+                        reply = {
+                            type: "template",
+                            altText: "請選擇下一步",
+                            template: {
+                                type: "buttons",
+                                text: data.textContent || "請選擇：",
+                                actions: actions.slice(0, 4)
+                            }
+                        };
+                    } else {
+                        // 沒按鈕時，純文字回覆
+                        reply = { type: "text", text: data.textContent || "內容未設定" };
+                    }
+                    break;
             }
 
             return client.replyMessage(event.replyToken, reply);
         }));
 
         res.status(200).send("OK");
-    } catch (err) { res.status(500).send("Error"); }
+    } catch (err) { 
+        console.error("Webhook Error:", err);
+        res.status(500).send("Error"); 
+    }
 };
