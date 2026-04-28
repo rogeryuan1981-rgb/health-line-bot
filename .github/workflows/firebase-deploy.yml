@@ -17,13 +17,13 @@ jobs:
       - name: 設定 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20  # 使用 Firebase 最穩定的 Node 版本
+          node-version: 20
 
       - name: 在 GitHub 環境編譯程式碼
         run: |
           cd functions
           npm install
-          npm run build  # 在這裡就先把 tsc 跑完，產出 lib 資料夾
+          npm run build  # 在這裡就先把 tsc 跑完
 
       - name: 部署至 Firebase
         uses: w9jds/firebase-action@master
