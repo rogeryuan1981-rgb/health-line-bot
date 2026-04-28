@@ -23,47 +23,46 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const userMessage = event.message.text;
             const snapshot = await db.collection("flowRules").where("nodeName", "==", userMessage).limit(1).get();
 
-            if (snapshot.empty) {
-                return client.replyMessage(event.replyToken, { type: "text", text: `未設定「${userMessage}」的回覆。` });
-            }
+            if (snapshot.empty) return;
 
             const data = snapshot.docs[0].data();
+            
+            // 👉 動態解析按鈕陣列
+            const actions: any[] = (data.buttons || []).map((btn: any) => ({
+                type: "message",
+                label: btn.label || "未命名按鈕",
+                text: btn.target || "無效觸發"
+            }));
+
             let reply: line.Message;
 
-            // 根據資料庫儲存的類型來決定回覆格式
-            switch (data.messageType) {
-                case "video":
-                    reply = {
-                        type: "template",
-                        altText: `觀看影片：${data.videoTitle}`,
-                        template: {
-                            type: "buttons",
-                            thumbnailImageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
-                            title: data.videoTitle || "教學影片",
-                            text: "點擊下方連結開始觀看",
-                            actions: [{ type: "uri", label: "立刻觀看", uri: data.videoUrl || "https://youtube.com" }]
-                        }
-                    };
-                    break;
-                case "image":
-                    reply = {
-                        type: "image",
-                        originalContentUrl: data.imageUrl || "https://via.placeholder.com/800",
-                        previewImageUrl: data.imageUrl || "https://via.placeholder.com/800"
-                    };
-                    break;
-                case "text":
-                default:
-                    reply = { type: "text", text: data.textContent || "無預設文字內容" };
-                    break;
+            // 如果有按鈕，使用模板訊息
+            if (actions.length > 0) {
+                reply = {
+                    type: "template",
+                    altText: "請查看選單內容",
+                    template: {
+                        type: "buttons",
+                        thumbnailImageUrl: data.messageType === 'image' ? data.imageUrl : undefined,
+                        title: data.messageType === 'video' ? data.videoTitle : undefined,
+                        text: data.textContent || `您選擇了：${data.nodeName}\n請點擊下方按鈕：`,
+                        actions: actions.slice(0, 4) // LINE Buttons Template 限制最多 4 個，如果要 5 個以上需改用 Carousel
+                    }
+                };
+            } else {
+                // 處理純影片或圖片
+                if (data.messageType === 'video') {
+                    reply = { type: "text", text: `影片連結：${data.videoUrl}` };
+                } else if (data.messageType === 'image') {
+                    reply = { type: "image", originalContentUrl: data.imageUrl, previewImageUrl: data.imageUrl };
+                } else {
+                    reply = { type: "text", text: data.textContent || "內容為空" };
+                }
             }
 
             return client.replyMessage(event.replyToken, reply);
         }));
 
         res.status(200).send("OK");
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Error");
-    }
+    } catch (err) { res.status(500).send("Error"); }
 };
