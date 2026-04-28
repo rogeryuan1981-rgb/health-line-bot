@@ -1,4 +1,4 @@
-import { Youtube, ExternalLink } from 'lucide-react'; // 👉 移除了 MessageSquare
+import { Youtube, ExternalLink } from 'lucide-react';
 
 interface LineSimulatorProps {
   data: {
@@ -8,6 +8,7 @@ interface LineSimulatorProps {
     videoTitle?: string;
     videoUrl?: string;
     imageUrl?: string;
+    imageAspectRatio?: 'rectangle' | 'square'; // 👉 新增尺寸判斷
     buttons?: { label: string; target: string }[];
   };
 }
@@ -15,64 +16,55 @@ interface LineSimulatorProps {
 export default function LineSimulator({ data }: LineSimulatorProps) {
   if (!data.nodeName) return null;
 
+  // 判斷比例的 CSS 類名
+  const aspectRatioClass = data.imageAspectRatio === 'square' ? 'aspect-square' : 'aspect-video';
+
   return (
-    <div className="fixed bottom-6 right-6 w-72 bg-[#7494C0] rounded-t-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col z-50 font-sans animate-in slide-in-from-bottom-5 duration-300">
-      <div className="bg-[#273246] text-white px-4 py-2 flex items-center justify-between text-sm font-bold">
-        <span>LINE 實時模擬器</span>
-        <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-red-500"></div>
-          <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+    <div className="fixed bottom-6 right-6 w-64 bg-[#7494C0] rounded-t-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col z-50 font-sans animate-in slide-in-from-bottom-5">
+      <div className="bg-[#273246] text-white px-3 py-1.5 flex items-center justify-between text-[11px] font-bold">
+        <span>LINE 模擬器</span>
+        <div className="flex gap-1 opacity-50">
+          <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+          <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
         </div>
       </div>
 
-      <div className="p-3 space-y-4 max-h-[400px] overflow-y-auto">
+      <div className="p-2.5 space-y-3 max-h-[350px] overflow-y-auto scrollbar-hide">
         <div className="flex justify-end">
-          <div className="bg-[#A0F080] rounded-2xl rounded-tr-none px-3 py-1.5 text-sm shadow-sm max-w-[80%]">
+          <div className="bg-[#A0F080] rounded-xl rounded-tr-none px-2 py-1 text-[12px] shadow-sm max-w-[85%] text-slate-800">
             {data.nodeName}
           </div>
         </div>
 
-        <div className="flex items-start gap-2">
-          <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-[#7494C0] border border-gray-200 flex-shrink-0">
-            BOT
-          </div>
-          
-          <div className="flex-1 space-y-2">
+        <div className="flex items-start gap-1.5">
+          <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[8px] font-bold text-[#7494C0] flex-shrink-0">BOT</div>
+          <div className="flex-1 space-y-1.5">
             {data.messageType === 'text' && (
-              <div className="bg-white rounded-2xl rounded-tl-none px-3 py-2 text-sm shadow-sm inline-block">
+              <div className="bg-white rounded-xl rounded-tl-none px-2.5 py-1.5 text-[12px] shadow-sm inline-block text-slate-700">
                 {data.textContent || "請輸入內容..."}
               </div>
             )}
 
             {(data.messageType === 'video' || data.messageType === 'image') && (
-              <div className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-100 w-full">
-                <div className="aspect-video bg-gray-100 relative group overflow-hidden">
-                  <img 
-                    src={data.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400"} 
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
+              <div className="bg-white rounded-lg overflow-hidden shadow-sm border border-gray-100 w-full">
+                {/* 👉 動態比例圖片區 */}
+                <div className={`${aspectRatioClass} bg-gray-100 relative overflow-hidden transition-all duration-300`}>
+                  <img src={data.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400"} alt="Preview" className="w-full h-full object-cover" />
                   {data.messageType === 'video' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <Youtube className="text-white fill-red-600" size={40} />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <Youtube className="text-white fill-red-600" size={32} />
                     </div>
                   )}
                 </div>
                 
-                <div className="p-3 space-y-1">
-                  <h4 className="font-bold text-sm truncate">{data.videoTitle || "卡片標題"}</h4>
-                  <p className="text-[11px] text-gray-500 line-clamp-2">點擊按鈕查看詳情。</p>
+                <div className="p-2 space-y-0.5">
+                  <h4 className="font-bold text-[12px] truncate text-slate-800">{data.videoTitle || "未設定標題"}</h4>
+                  <p className="text-[10px] text-gray-400 line-clamp-1">點擊下方按鈕進行下一步。</p>
                 </div>
 
-                <div className="border-t border-gray-100 flex flex-col">
-                  {data.messageType === 'video' && (
-                    <div className="py-2 text-center text-[#5584C0] text-xs font-bold border-b border-gray-50 flex items-center justify-center gap-1">
-                      <ExternalLink size={12} /> 觀看影片
-                    </div>
-                  )}
+                <div className="border-t border-gray-50 flex flex-col divide-y divide-gray-50">
                   {data.buttons?.map((btn, i) => (
-                    <div key={i} className="py-2 text-center text-[#5584C0] text-xs font-bold border-b border-gray-50 last:border-0">
+                    <div key={i} className="py-1.5 text-center text-[#5584C0] text-[11px] font-bold active:bg-gray-100">
                       {btn.label || "按鈕名稱"}
                     </div>
                   ))}
@@ -81,9 +73,6 @@ export default function LineSimulator({ data }: LineSimulatorProps) {
             )}
           </div>
         </div>
-      </div>
-      <div className="bg-white/90 p-2 text-[9px] text-gray-400 text-center italic border-t border-gray-200">
-        模擬畫面僅供參考
       </div>
     </div>
   );
