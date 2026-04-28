@@ -4,6 +4,15 @@ import { WebhookEvent } from '@line/bot-sdk';
 // 引入處理單一事件的核心邏輯 (我們將在下一個檔案建立它)
 import { processEvent } from '../services/lineService';
 
+// 修正後的匯入方式
+import { Request, Response } from "firebase-functions/v2/https";
+
+export const handleWebhook = async (req: Request, res: Response) => {
+    // 您原本處理 LINE 訊息的邏輯放在這裡
+    // ...
+    res.status(200).send("OK");
+};
+
 export const handleLineWebhook = async (req: Request, res: Response) => {
   // 1. 安全性檢查：確保是 POST 請求
   if (req.method !== 'POST') {
