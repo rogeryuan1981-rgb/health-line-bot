@@ -2,7 +2,7 @@
   "name": "health-bot-functions",
   "description": "預防保健客服 LINE Webhook 後端邏輯", 
   "engines": {
-    "node": "18"
+    "node": "24.x"
   },
   "main": "lib/index.js",
   "scripts": {
