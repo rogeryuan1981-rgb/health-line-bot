@@ -17,12 +17,17 @@ jobs:
       - name: 設定 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20  # 使用 Firebase 最穩定的 Node 版本
+
+      - name: 在 GitHub 環境編譯程式碼
+        run: |
+          cd functions
+          npm install
+          npm run build  # 在這裡就先把 tsc 跑完，產出 lib 資料夾
 
       - name: 部署至 Firebase
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only functions
         env:
-          # 使用我們剛才設定的服務帳號金鑰
           GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
