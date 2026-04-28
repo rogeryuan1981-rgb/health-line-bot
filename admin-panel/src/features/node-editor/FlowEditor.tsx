@@ -12,7 +12,6 @@ export default function FlowEditor() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // 👉 顏色樣式對應
   const getNodeStyle = (type: string) => {
     switch(type) {
       case 'carousel':
@@ -24,7 +23,6 @@ export default function FlowEditor() {
     }
   };
 
-  // 👉 產生專屬的類型標籤文字
   const getTypeLabel = (type: string) => {
     switch(type) {
         case 'carousel': return 'CAROUSEL 輪播';
@@ -45,7 +43,6 @@ export default function FlowEditor() {
           type: 'default',
           position: data.position || { x: 100, y: 100 },
           data: { 
-            // 👉 核心改動：將 label 改為結構化的 JSX，加入類型標籤 Badge
             label: (
               <div className="flex flex-col items-center gap-1.5">
                 <div className="text-[8px] bg-black/40 px-2 py-0.5 rounded-full text-white/90 uppercase tracking-widest border border-white/10 shadow-sm">
@@ -116,7 +113,8 @@ export default function FlowEditor() {
           fitView
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#475569" className="opacity-30" />
-          <Controls className="bg-slate-800 fill-white border-none shadow-2xl" />
+          {/* 👉 修正：移除會導致白底白字的 Tailwind class，讓它回歸預設清晰樣式 */}
+          <Controls className="shadow-lg" />
         </ReactFlow>
       </div>
 
