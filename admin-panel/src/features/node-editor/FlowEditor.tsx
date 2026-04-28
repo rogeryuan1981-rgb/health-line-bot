@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, NodeMouseHandler } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import { Plus } from 'lucide-react';
@@ -12,10 +12,10 @@ export default function FlowEditor() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // 👉 根據回覆種類，給予不同的顏色標籤
   const getNodeStyle = (type: string) => {
     switch(type) {
-      case 'carousel': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+      case 'carousel':
+      case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
       case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
       case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
       case 'text':
@@ -43,7 +43,6 @@ export default function FlowEditor() {
   }, []);
 
   const addNewNode = async () => { 
-    // 👉 加入隨機偏移量，防止新增多個節點時疊加在一起
     const offset = Math.floor(Math.random() * 50);
     await addDoc(collection(db, "flowRules"), { 
       nodeName: "新關鍵字", 
@@ -55,6 +54,23 @@ export default function FlowEditor() {
 
   const onNodeDragStop: NodeMouseHandler = async (_, node) => { 
     await updateDoc(doc(db, "flowRules", node.id), { position: node.position }); 
+  };
+
+  // 👉 解決 1：攔截鍵盤 Delete/Backspace 刪除節點
+  const onNodesDelete = useCallback(async (deletedNodes: Node[]) => {
+    for (const node of deletedNodes) {
+      await deleteDoc(doc(db, "flowRules", node.id));
+      if (node.id === selectedNodeId) {
+        setIsPanelOpen(false);
+        setSelectedNodeId(null);
+      }
+    }
+  }, [selectedNodeId]);
+
+  // 👉 解決 2：統一關閉面板的行為 (先滑走，再清空資料)
+  const handleClosePanel = () => {
+    setIsPanelOpen(false);
+    setTimeout(() => setSelectedNodeId(null), 300); // 配合 CSS duration-300
   };
 
   return (
@@ -70,9 +86,10 @@ export default function FlowEditor() {
           nodes={nodes} edges={edges} 
           onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
           onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
+          onNodesDelete={onNodesDelete}
           onNodeClick={(_, n) => { setSelectedNodeId(n.id); setIsPanelOpen(true); }} 
           onNodeDragStop={onNodeDragStop} 
-          onPaneClick={() => setIsPanelOpen(false)} 
+          onPaneClick={handleClosePanel} 
           fitView
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#475569" className="opacity-30" />
@@ -81,7 +98,7 @@ export default function FlowEditor() {
       </div>
 
       <div className={`absolute right-0 top-0 h-full transition-transform duration-300 z-20 ${isPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <NodeEditPanel nodeId={selectedNodeId} onClose={() => setIsPanelOpen(false)} />
+        <NodeEditPanel nodeId={selectedNodeId} onClose={handleClosePanel} />
       </div>
     </div>
   );
