@@ -1,4 +1,5 @@
 import { MessageSquare, Settings, Users, LayoutTemplate } from 'lucide-react'
+import FlowEditor from './features/node-editor/FlowEditor' // 引入視覺化流程編輯器
 
 export default function App() {
   return (
@@ -50,9 +51,9 @@ export default function App() {
 
         {/* 內容渲染區 */}
         <div className="flex-1 p-6 bg-muted/10 overflow-hidden flex flex-col">
-          {/* 預留給 React Flow 的畫布區域 */}
-          <div className="flex-1 border-2 border-border border-dashed rounded-xl flex items-center justify-center bg-card text-muted-foreground shadow-sm">
-            [視覺化流程編輯器載入中... 將於下一個步驟實作]
+          {/* 載入 React Flow 畫布 */}
+          <div className="flex-1 border border-border rounded-xl flex items-center justify-center bg-card shadow-sm overflow-hidden">
+            <FlowEditor />
           </div>
         </div>
       </main>
