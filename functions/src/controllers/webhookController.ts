@@ -3,7 +3,7 @@ import * as line from "@line/bot-sdk";
 
 // ⚠️ 請將這裡替換成您剛剛拿到的兩把鑰匙
 const config = {
-    channelAccessToken: "eQCJp/rLnS7EQMAlG8Usw11kBQYr4xaZAk15CxSVe+nGK32zZni58WsXILleNK5gIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12cpg7CfyBmgejXsHqutQL9S8WKmoc3CXDIVt9noMCl3cwdB04t89/1O/w1cDnyilFU=",
+    channelAccessToken: "AYVtEDZdBNI2Uzy+4zu1+FhNHZ7Ly4b6v69Hz2swC3ntdpS+3vdLcMZmescCUSPCIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12fnVxs+Nrlcbg2sX/Tvkxj3ARK4kpd0myiKqEWLTL0ApgdB04t89/1O/w1cDnyilFU=",
     channelSecret: "14c91b3caaa31d8583e3175dfb9c052f"
 };
 
@@ -30,7 +30,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
                 // 抓出使用者打的字
                 const userMessage = event.message.text;
-                console.log(`收到使用者訊息: ${userMessage}`);
+                console.log(`收到訊息: ${userMessage} | 使用的 Token: ${config.channelAccessToken.substring(0, 10)}...`);
 
                 // 準備回傳的訊息結構
                 const replyMessage: line.TextMessage = {
