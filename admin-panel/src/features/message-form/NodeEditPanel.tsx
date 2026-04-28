@@ -1,0 +1,113 @@
+import { X, Plus, Save, Youtube, LayoutPanelLeft, MessageSquare } from 'lucide-react'
+
+// 模擬右側滑出的編輯面板
+export default function NodeEditPanel() {
+  return (
+    <div className="w-80 h-full bg-card border-l border-border flex flex-col shadow-2xl absolute right-0 top-0 z-20">
+      
+      {/* 面板標題區 */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/30">
+        <h3 className="font-semibold text-foreground">編輯節點內容</h3>
+        <button className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary">
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* 表單內容區 (可捲動) */}
+      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
+        
+        {/* 節點名稱 */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-muted-foreground">節點名稱 (內部識別用)</label>
+          <input 
+            type="text" 
+            defaultValue="教學影片：居家基礎伸展操"
+            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* 訊息類型選擇 */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-muted-foreground">回覆訊息類型</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border-2 border-transparent hover:border-border rounded-md p-2 transition-all">
+              <MessageSquare size={18} className="text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">純文字</span>
+            </button>
+            <button className="flex flex-col items-center justify-center gap-1 bg-primary/10 border-2 border-primary rounded-md p-2 transition-all">
+              <Youtube size={18} className="text-primary" />
+              <span className="text-xs text-primary font-medium">影片卡片</span>
+            </button>
+            <button className="flex flex-col items-center justify-center gap-1 bg-secondary border-2 border-transparent hover:border-border rounded-md p-2 transition-all">
+              <LayoutPanelLeft size={18} className="text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">圖文選單</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 影片設定區塊 (當選擇影片卡片時顯示) */}
+        <div className="flex flex-col gap-4 p-4 border border-border rounded-lg bg-secondary/20">
+          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Youtube size={16} className="text-destructive" />
+            影片懶人包設定
+          </h4>
+          
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-muted-foreground">卡片主標題</label>
+            <input 
+              type="text" 
+              defaultValue="每天五分鐘，遠離心血管疾病"
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-muted-foreground">YouTube 影片網址</label>
+            <input 
+              type="url" 
+              placeholder="https://youtube.com/..."
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        {/* 使用者互動按鈕設定 */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-muted-foreground">下一步互動按鈕</label>
+            <span className="text-xs text-muted-foreground">最多 3 個</span>
+          </div>
+          
+          {/* 已新增的按鈕 */}
+          <div className="flex items-center gap-2 bg-secondary p-2 rounded-md border border-border">
+            <div className="w-4 h-4 rounded-full bg-primary/20 border border-primary flex-shrink-0"></div>
+            <input 
+              type="text" 
+              defaultValue="返回主選單"
+              className="flex-1 bg-transparent border-none text-sm focus:outline-none text-foreground"
+            />
+            <button className="text-muted-foreground hover:text-destructive">
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* 新增按鈕 */}
+          <button className="flex items-center justify-center gap-2 w-full border border-dashed border-border rounded-md py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+            <Plus size={16} />
+            新增選項按鈕
+          </button>
+        </div>
+
+      </div>
+
+      {/* 底部儲存區 */}
+      <div className="p-4 border-t border-border bg-card">
+        <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors">
+          <Save size={18} />
+          儲存節點設定
+        </button>
+      </div>
+
+    </div>
+  )
+}
