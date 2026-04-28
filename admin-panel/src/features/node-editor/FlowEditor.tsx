@@ -4,7 +4,6 @@ import ReactFlow, {
   Background,
   applyNodeChanges,
   applyEdgeChanges,
-  addEdge,
   Node,
   Edge,
   OnNodesChange,
@@ -14,7 +13,7 @@ import ReactFlow, {
   NodeMouseHandler,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, query, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import { Plus } from 'lucide-react';
@@ -27,6 +26,7 @@ export default function FlowEditor() {
 
   // 📡 監聽資料庫：節點與連線
   useEffect(() => {
+    // 監聽節點
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snapshot) => {
       const dbNodes = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -38,6 +38,7 @@ export default function FlowEditor() {
       setNodes(dbNodes);
     });
 
+    // 監聽連線
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snapshot) => {
       const dbEdges = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -57,7 +58,7 @@ export default function FlowEditor() {
     await addDoc(collection(db, "flowRules"), {
       nodeName: "新關鍵字",
       type: "default",
-      position: { x: Math.random() * 400, y: Math.random() * 400 },
+      position: { x: 150, y: 150 },
       updatedAt: serverTimestamp()
     });
   };
@@ -70,6 +71,7 @@ export default function FlowEditor() {
 
   // 🔗 連線後存入資料庫
   const onConnect: OnConnect = async (params) => {
+    if (!params.source || !params.target) return;
     await addDoc(collection(db, "flowEdges"), {
       source: params.source,
       target: params.target,
