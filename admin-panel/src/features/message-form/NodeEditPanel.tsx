@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { X, Plus, Save, Youtube, LayoutPanelLeft, MessageSquare } from 'lucide-react'
-// 👉 引入 Firebase Firestore 的寫入功能
+// 👉 拿掉了沒有用到的 Plus
+import { X, Save, Youtube, LayoutPanelLeft, MessageSquare } from 'lucide-react'
 import { collection, addDoc } from 'firebase/firestore'
-import { db } from '../../../../firebase' // 確保這個路徑有指向您剛才建立的 firebase.ts
+// 👉 修正為正確的路徑：退回兩層就能找到 src/firebase.ts
+import { db } from '../../firebase'
 
 export default function NodeEditPanel() {
   // 👉 建立 State 來記憶使用者在輸入框打的字
