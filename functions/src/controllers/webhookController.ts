@@ -3,8 +3,8 @@ import * as line from "@line/bot-sdk";
 
 // ⚠️ 請將這裡替換成您剛剛拿到的兩把鑰匙
 const config = {
-    channelAccessToken: "請在這裡貼上您的_CHANNEL_ACCESS_TOKEN",
-    channelSecret: "請在這裡貼上您的_CHANNEL_SECRET"
+    channelAccessToken: "eQCJp/rLnS7EQMAlG8Usw11kBQYr4xaZAk15CxSVe+nGK32zZni58WsXILleNK5gIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12cpg7CfyBmgejXsHqutQL9S8WKmoc3CXDIVt9noMCl3cwdB04t89/1O/w1cDnyilFU=",
+    channelSecret: "14c91b3caaa31d8583e3175dfb9c052f"
 };
 
 // 建立 LINE 溝通客戶端
