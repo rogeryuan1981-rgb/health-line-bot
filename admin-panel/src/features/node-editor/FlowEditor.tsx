@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant } from 'reactflow';
+import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, NodeMouseHandler } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import { Plus } from 'lucide-react';
@@ -12,13 +12,29 @@ export default function FlowEditor() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // 👉 根據回覆種類，給予不同的顏色標籤
+  const getNodeStyle = (type: string) => {
+    switch(type) {
+      case 'carousel': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+      case 'text':
+      default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+    }
+  };
+
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
-      setNodes(snap.docs.map(d => ({
-        id: d.id, type: 'default', position: d.data().position || { x: 100, y: 100 },
-        data: { label: d.data().nodeName || '新節點' },
-        className: 'bg-card text-card-foreground border-2 border-border shadow-md rounded-md px-4 py-2 min-w-[180px] text-center'
-      })));
+      setNodes(snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          type: 'default',
+          position: data.position || { x: 100, y: 100 },
+          data: { label: data.nodeName || '未命名節點' },
+          className: `border-2 shadow-xl rounded-xl px-5 py-3 min-w-[160px] text-center font-bold tracking-widest ${getNodeStyle(data.messageType)}`
+        };
+      }));
     });
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => ({ id: d.id, source: d.data().source, target: d.data().target, animated: true })));
@@ -27,13 +43,24 @@ export default function FlowEditor() {
   }, []);
 
   const addNewNode = async () => { 
-    await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: 150, y: 150 }, updatedAt: serverTimestamp() }); 
+    // 👉 加入隨機偏移量，防止新增多個節點時疊加在一起
+    const offset = Math.floor(Math.random() * 50);
+    await addDoc(collection(db, "flowRules"), { 
+      nodeName: "新關鍵字", 
+      messageType: "text", 
+      position: { x: 150 + offset, y: 150 + offset }, 
+      updatedAt: serverTimestamp() 
+    }); 
+  };
+
+  const onNodeDragStop: NodeMouseHandler = async (_, node) => { 
+    await updateDoc(doc(db, "flowRules", node.id), { position: node.position }); 
   };
 
   return (
-    <div className="w-full h-full relative bg-[#0F172A]">
-      <div className="absolute top-4 left-4 z-10">
-        <button onClick={addNewNode} className="bg-[#06C755] text-white px-4 py-2 rounded-md shadow-lg flex items-center gap-2 font-bold transition-transform hover:scale-105">
+    <div className="w-full h-full relative bg-[#0F172A] flex overflow-hidden">
+      <div className="absolute top-6 left-6 z-10">
+        <button onClick={addNewNode} className="bg-[#deff9a] text-black px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 font-black tracking-widest transition-transform hover:scale-105">
           <Plus size={18} /> 新增節點
         </button>
       </div>
@@ -44,11 +71,12 @@ export default function FlowEditor() {
           onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
           onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
           onNodeClick={(_, n) => { setSelectedNodeId(n.id); setIsPanelOpen(true); }} 
+          onNodeDragStop={onNodeDragStop} 
           onPaneClick={() => setIsPanelOpen(false)} 
           fitView
         >
-          <Background variant={BackgroundVariant.Dots} gap={16} size={2} color="#475569" className="opacity-20" />
-          <Controls />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#475569" className="opacity-30" />
+          <Controls className="bg-slate-800 fill-white border-none shadow-2xl" />
         </ReactFlow>
       </div>
 
