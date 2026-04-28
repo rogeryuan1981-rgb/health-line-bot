@@ -14,16 +14,19 @@ jobs:
       - name: 檢出程式碼
         uses: actions/checkout@v4
 
-      - name: 設定 Node.js
+      - name: 設定 Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24 # 升級到最新版以符合 2026 規範
 
       - name: 在 GitHub 環境編譯程式碼
+        # 設定 FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true 來消滅那個黃色警告
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: |
           cd functions
           npm install
-          npm run build  # 在這裡就先把 tsc 跑完
+          npm run build
 
       - name: 部署至 Firebase
         uses: w9jds/firebase-action@master
