@@ -3,7 +3,7 @@ import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, No
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
-import NodeEditPanel from '../message-form/NodeEditPanel'; 
+import NodeEditPanel from '../message-form/NodeEditPanel';
 import { Plus } from 'lucide-react';
 
 export default function FlowEditor() {
@@ -12,6 +12,7 @@ export default function FlowEditor() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  // 👉 顏色樣式對應
   const getNodeStyle = (type: string) => {
     switch(type) {
       case 'carousel':
@@ -23,6 +24,18 @@ export default function FlowEditor() {
     }
   };
 
+  // 👉 產生專屬的類型標籤文字
+  const getTypeLabel = (type: string) => {
+    switch(type) {
+        case 'carousel': return 'CAROUSEL 輪播';
+        case 'flex': return 'FLEX 萬能卡片';
+        case 'image': return 'IMAGE 圖片';
+        case 'video': return 'VIDEO 影音';
+        case 'text':
+        default: return 'TEXT 純文字';
+    }
+  };
+
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
@@ -31,8 +44,20 @@ export default function FlowEditor() {
           id: d.id,
           type: 'default',
           position: data.position || { x: 100, y: 100 },
-          data: { label: data.nodeName || '未命名節點' },
-          className: `border-2 shadow-xl rounded-xl px-5 py-3 min-w-[160px] text-center font-bold tracking-widest ${getNodeStyle(data.messageType)}`
+          data: { 
+            // 👉 核心改動：將 label 改為結構化的 JSX，加入類型標籤 Badge
+            label: (
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="text-[8px] bg-black/40 px-2 py-0.5 rounded-full text-white/90 uppercase tracking-widest border border-white/10 shadow-sm">
+                  {getTypeLabel(data.messageType)}
+                </div>
+                <div className="font-black text-sm tracking-widest">
+                  {data.nodeName || '未命名節點'}
+                </div>
+              </div>
+            )
+          },
+          className: `border-2 shadow-xl rounded-xl px-5 py-4 min-w-[160px] text-center ${getNodeStyle(data.messageType)}`
         };
       }));
     });
@@ -56,7 +81,6 @@ export default function FlowEditor() {
     await updateDoc(doc(db, "flowRules", node.id), { position: node.position }); 
   };
 
-  // 👉 解決 1：攔截鍵盤 Delete/Backspace 刪除節點
   const onNodesDelete = useCallback(async (deletedNodes: Node[]) => {
     for (const node of deletedNodes) {
       await deleteDoc(doc(db, "flowRules", node.id));
@@ -67,10 +91,9 @@ export default function FlowEditor() {
     }
   }, [selectedNodeId]);
 
-  // 👉 解決 2：統一關閉面板的行為 (先滑走，再清空資料)
   const handleClosePanel = () => {
     setIsPanelOpen(false);
-    setTimeout(() => setSelectedNodeId(null), 300); // 配合 CSS duration-300
+    setTimeout(() => setSelectedNodeId(null), 300);
   };
 
   return (
