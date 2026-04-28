@@ -3,7 +3,7 @@ import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, No
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
-import NodeEditPanel from '../message-form/NodeEditPanel';
+import NodeEditPanel from '../message-form/NodeEditPanel'; 
 import { Plus } from 'lucide-react';
 
 export default function FlowEditor() {
