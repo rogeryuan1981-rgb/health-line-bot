@@ -14,7 +14,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// 引入剛才建立的編輯面板
+// 引入編輯面板
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
 const initialNodes: Node[] = [
@@ -55,7 +55,6 @@ export default function FlowEditor() {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   
-  // 狀態：控制右側編輯面板是否顯示
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const onNodesChange: OnNodesChange = useCallback(
@@ -73,7 +72,6 @@ export default function FlowEditor() {
     []
   );
 
-  // 點擊節點時，開啟編輯面板
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     console.log('選中的節點:', node.id);
     setIsPanelOpen(true);
@@ -90,26 +88,25 @@ export default function FlowEditor() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeClick={onNodeClick} // 綁定點擊事件
-          onPaneClick={() => setIsPanelOpen(false)} // 點擊空白處關閉面板
+          onNodeClick={onNodeClick}
+          onPaneClick={() => setIsPanelOpen(false)}
           fitView
           className="bg-background"
         >
-          <Background variant={BackgroundVariant.Dots} gap={16} size={2} color="hsl(var(--muted-foreground))" opacity={0.3} />
-          <Controls 
-            className="bg-card border-border fill-foreground"
-            style={{ button: { backgroundColor: 'hsl(var(--card))', borderBottom: '1px solid hsl(var(--border))' } }}
-          />
+          {/* 修正 1：移除不支援的 opacity 屬性，改用 Tailwind 的 className="opacity-30" */}
+          <Background variant={BackgroundVariant.Dots} gap={16} size={2} color="hsl(var(--muted-foreground))" className="opacity-30" />
+          
+          {/* 修正 2：移除無效的巢狀 style 屬性 */}
+          <Controls className="bg-card border-border fill-foreground" />
         </ReactFlow>
       </div>
 
-      {/* 編輯面板 (加上滑入動畫) */}
+      {/* 編輯面板 */}
       <div 
         className={`absolute right-0 top-0 h-full transition-transform duration-300 ease-in-out z-20 ${
           isPanelOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        {/* 我們這裡用 onClick 攔截點擊，避免事件穿透到畫布導致面板關閉 */}
         <div className="h-full" onClick={(e) => e.stopPropagation()}>
           <NodeEditPanel />
         </div>
