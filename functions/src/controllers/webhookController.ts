@@ -15,36 +15,46 @@ const client = new line.Client(config);
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
         const events = req.body.events;
-        if (!events || events.length === 0) return res.status(200).send("OK");
+        if (!events || events.length === 0) {
+            res.status(200).send("OK");
+            return;
+        }
 
         await Promise.all(events.map(async (event: any) => {
-            if (event.type !== "message" || event.message.type !== "text") return;
+            // 修正 1: 過濾非文字訊息時，必須明確回傳 null
+            if (event.type !== "message" || event.message.type !== "text") {
+                return null;
+            }
 
             const userMessage = event.message.text;
             const snapshot = await db.collection("flowRules").where("nodeName", "==", userMessage).limit(1).get();
 
-            if (snapshot.empty) return; // 找不到關鍵字就不回覆，或可改為回覆預設訊息
+            // 修正 2: 找不到關鍵字時，發送預設訊息後也要 return
+            if (snapshot.empty) {
+                await client.replyMessage(event.replyToken, { 
+                    type: "text", 
+                    text: `抱歉，我還沒學會如何回應「${userMessage}」，請到後台設定喔！` 
+                });
+                return null;
+            }
 
             const data = snapshot.docs[0].data();
             let reply: line.Message;
 
-            // 1. 準備按鈕 (如果有設定的話)
+            // 準備按鈕
             const actions: any[] = (data.buttons || []).map((btn: any) => ({
                 type: "message",
                 label: btn.label || "未命名按鈕",
                 text: btn.target || "無效目標"
             }));
 
-            // 2. 根據設定的類型 (messageType) 來決定回覆格式
+            // 根據 messageType 組合 LINE 訊息
             switch (data.messageType) {
                 case "video":
-                    // 影片一律使用 Buttons Template，確保有卡片感
                     const videoActions = [...actions];
-                    // 如果有影片網址，強制在最前面加一個「觀看影片」按鈕
                     if (data.videoUrl) {
                         videoActions.unshift({ type: "uri", label: "📺 觀看教學影片", uri: data.videoUrl });
                     }
-                    
                     reply = {
                         type: "template",
                         altText: `影音教學：${data.videoTitle || '點擊觀看'}`,
@@ -53,14 +63,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
                             thumbnailImageUrl: data.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
                             title: data.videoTitle || "教學影片",
                             text: "請選擇下方操作繼續：",
-                            actions: videoActions.slice(0, 4) // LINE 限制最多 4 個
+                            actions: videoActions.slice(0, 4)
                         }
                     };
                     break;
 
                 case "image":
                     if (actions.length > 0) {
-                        // 有按鈕時，使用帶圖的 Buttons Template
                         reply = {
                             type: "template",
                             altText: "請查看圖片說明",
@@ -72,7 +81,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                             }
                         };
                     } else {
-                        // 沒按鈕時，發送純圖片
                         reply = {
                             type: "image",
                             originalContentUrl: data.imageUrl || "https://via.placeholder.com/800",
@@ -81,10 +89,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     }
                     break;
 
-                case "text":
-                default:
+                default: // 'text'
                     if (actions.length > 0) {
-                        // 有按鈕時，發送文字選單卡片
                         reply = {
                             type: "template",
                             altText: "請選擇下一步",
@@ -95,12 +101,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
                             }
                         };
                     } else {
-                        // 沒按鈕時，純文字回覆
                         reply = { type: "text", text: data.textContent || "內容未設定" };
                     }
                     break;
             }
 
+            // 修正 3: 確保這裡有 return 回覆操作的結果
             return client.replyMessage(event.replyToken, reply);
         }));
 
