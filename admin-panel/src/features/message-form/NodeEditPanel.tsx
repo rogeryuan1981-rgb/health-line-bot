@@ -37,6 +37,13 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     alert("✅ 防呆機制配置成功！");
   };
 
+  // 👉 解決 3：獨立且穩固的刪除邏輯
+  const handleDelete = async () => {
+    if (!nodeId || !window.confirm("確定徹底刪除此節點？")) return;
+    await deleteDoc(doc(db, "flowRules", nodeId));
+    onClose(); // 通知 FlowEditor 收起面板
+  };
+
   const renderResourcePicker = (field: 'imageUrl' | 'videoUrl', placeholder: string) => (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
@@ -85,18 +92,13 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             ))}
         </div>
 
-        {/* 嚴格防呆內容區：依據類型只顯示能用的欄位 */}
         <div className="space-y-4 border-t border-white/5 pt-4">
-            
-            {/* 1. 純文字模式：只有文字框，沒有按鈕 */}
             {nodeData.messageType === 'text' && (
                 <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="純文字回覆內容..." className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[120px] outline-none" />
             )}
 
-            {/* 2. 圖片模式：只有圖片網址 */}
             {nodeData.messageType === 'image' && renderResourcePicker('imageUrl', '請輸入圖片網址...')}
 
-            {/* 3. 影片模式：封面圖片網址 + 影片網址 */}
             {nodeData.messageType === 'video' && (
                 <>
                     {renderResourcePicker('imageUrl', '影片預覽封面網址...')}
@@ -104,7 +106,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                 </>
             )}
 
-            {/* 4. 萬能卡片模式 (FLEX)：文字 + 按鈕 + 可選圖片 */}
             {nodeData.messageType === 'flex' && (
                 <div className="space-y-4">
                     <div className="flex gap-2">
@@ -133,7 +134,10 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             )}
         </div>
 
-        <button onClick={() => { if(window.confirm("刪除節點？")) deleteDoc(doc(db, "flowRules", nodeId!)); onClose(); }} className="w-full text-red-500/50 hover:text-red-500 text-[10px] py-4 uppercase font-bold tracking-widest flex items-center justify-center gap-1"><Trash2 size={12}/> Delete Node</button>
+        {/* 綁定 handleDelete */}
+        <button onClick={handleDelete} className="w-full text-red-500/50 hover:text-red-500 text-[10px] py-4 uppercase font-bold tracking-widest flex items-center justify-center gap-1">
+          <Trash2 size={12}/> Delete Node
+        </button>
       </div>
 
       <div className="p-6 border-t border-white/10 bg-slate-900">
