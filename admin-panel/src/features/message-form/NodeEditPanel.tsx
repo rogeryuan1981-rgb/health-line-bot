@@ -12,7 +12,7 @@ interface NodeEditPanelProps {
 
 export default function NodeEditPanel({ nodeId, onClose }: NodeEditPanelProps) {
   const [nodeData, setNodeData] = useState<any>({
-    nodeName: "", 
+    nodeName: "",  
     messageType: 'text', 
     cardSize: 'md', 
     textContent: "",
