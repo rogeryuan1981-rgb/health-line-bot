@@ -20,40 +20,63 @@ export const handleWebhook = async (req: Request, res: Response) => {
     }
 
     await Promise.all(events.map(async (event: any) => {
-        // 目前僅處理文字訊息，如果是貼圖或圖片等其他類型也會觸發兜底，你可以將條件放寬
         if (event.type !== "message" || event.message.type !== "text") return null;
 
         const userMsg = event.message.text;
-        
-        // 👉 第一道防線：精確比對使用者輸入的關鍵字
         let snap = await db.collection("flowRules").where("nodeName", "==", userMsg).limit(1).get();
 
-        // 👉 第二道防線 (Fallback)：如果找不到，自動攔截並呼叫「預設回覆」節點
         if (snap.empty) {
             snap = await db.collection("flowRules").where("nodeName", "==", "預設回覆").limit(1).get();
         }
-
-        // 如果你在畫布上連「預設回覆」都還沒建立，就真的只能放生了
         if (snap.empty) return null;
 
         const data = snap.docs[0].data();
-        let reply: any;
+        // LINE SDK 支援 replyMessage 傳送單一物件或陣列 (最多 5 個)
+        let reply: line.Message | line.Message[];
 
         const mapButtons = (btns: any[], style: string) => {
-            return (btns || []).map((btn: any) => ({
-                type: "button",
-                height: "sm",
-                style: style === 'link' ? "link" : "primary",
-                color: style === 'link' ? "#5584C0" : "#06C755", 
-                action: { 
-                    type: "message", 
-                    label: btn.label || "未命名選項", 
-                    text: btn.target || "無效指令" 
-                }
-            }));
+            return (btns || []).map((btn: any) => {
+                const target = btn.target || "";
+                const isUrl = target.toLowerCase().startsWith('http');
+                
+                return {
+                    type: "button",
+                    height: "sm",
+                    style: style === 'link' ? "link" : "primary",
+                    color: style === 'link' ? "#5584C0" : "#06C755", 
+                    action: isUrl 
+                        ? { type: "uri", label: btn.label || "開啟連結", uri: target } 
+                        : { type: "message", label: btn.label || "未命名選項", text: target || "無效指令" } 
+                };
+            });
         };
 
         switch (data.messageType) {
+            // 👉 核心升級：解析多張圖片並回傳 Array
+            case "image":
+                const imgUrls = (data.imageUrls && data.imageUrls.length > 0) ? data.imageUrls : (data.imageUrl ? [data.imageUrl] : []);
+                const validUrls = imgUrls.filter((u: string) => u && u.trim() !== "");
+                
+                if (validUrls.length === 0) {
+                    reply = { type: "text", text: "圖片已遺失或未設定" };
+                } else {
+                    reply = validUrls.slice(0, 5).map((u: string) => ({
+                        type: "image",
+                        originalContentUrl: u,
+                        previewImageUrl: u
+                    }));
+                }
+                break;
+
+            case "file":
+                reply = {
+                    type: "file",
+                    originalContentUrl: data.fileUrl,
+                    fileName: data.textContent || "檔案.pdf",
+                    fileSize: 1048576 
+                };
+                break;
+
             case "flex":
                 reply = {
                     type: "flex",
@@ -130,10 +153,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                         }
                     };
                 }
-                break;
-
-            case "image":
-                reply = { type: "image", originalContentUrl: data.imageUrl, previewImageUrl: data.imageUrl };
                 break;
 
             case "text":
