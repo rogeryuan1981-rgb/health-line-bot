@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -7,7 +7,7 @@ import LineSimulator from '../simulator/LineSimulator'
 const EMOJI_LIST = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
   '👋','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👍','👎','✊','👊','👏','🙌','🙏',
-  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','🍺','☕','🎮','💻','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','啤酒','☕','🎮','💻','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
   '0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟',
   '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','🔔','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
 ];
@@ -24,8 +24,9 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // 👉 新增：控制資源庫選單的分類過濾器
+  // 👉 新增：控制資源庫選單的過濾與搜尋狀態
   const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!nodeId) return;
@@ -65,35 +66,67 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     );
   };
 
-  // 👉 核心升級：帶有分類過濾按鈕的下拉選單
+  // 👉 核心升級：具備搜尋、分類、排序功能的資源下拉選單
   const renderLibraryDropdown = (onSelect: (url: string) => void) => {
-    const filteredLib = library.filter(item => {
-        if (libFilter === 'all') return true;
-        const t = (item.type || '').toLowerCase();
-        const u = (item.url || '').toLowerCase();
-        const isVideo = t === 'video' || u.includes('youtube') || u.includes('youtu.be') || u.endsWith('.mp4') || u.endsWith('.mov');
-        const isFile = t === 'file' || t === 'pdf' || u.endsWith('.pdf');
+    const filteredLib = library
+      .filter(item => {
+        // 1. 分類過濾
+        let matchType = true;
+        if (libFilter !== 'all') {
+          const t = (item.type || '').toLowerCase();
+          const u = (item.url || '').toLowerCase();
+          const isVideo = t === 'video' || u.includes('youtube') || u.includes('youtu.be') || u.endsWith('.mp4') || u.endsWith('.mov');
+          const isFile = t === 'file' || t === 'pdf' || u.endsWith('.pdf');
+          
+          if (libFilter === 'video') matchType = isVideo;
+          else if (libFilter === 'file') matchType = isFile;
+          else if (libFilter === 'image') matchType = !isVideo && !isFile;
+        }
+
+        // 2. 關鍵字搜尋過濾
+        const matchSearch = (item.name || '').toLowerCase().includes(searchTerm.toLowerCase());
         
-        if (libFilter === 'video') return isVideo;
-        if (libFilter === 'file') return isFile;
-        if (libFilter === 'image') return !isVideo && !isFile;
-        return true;
-    });
+        return matchType && matchSearch;
+      })
+      // 👉 3. 名稱排序 (A-Z / 繁中依筆劃)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", 'zh-Hant'));
 
     return (
-        <div className="bg-slate-800 rounded-xl border border-[#deff9a]/20 mt-2 shadow-2xl z-50 overflow-hidden flex flex-col">
-            {/* 分類按鈕區塊 */}
+        <div className="bg-slate-800 rounded-xl border border-[#deff9a]/20 mt-2 shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-2">
+            {/* 分類頁籤 */}
             <div className="flex bg-slate-900/50 p-1 border-b border-white/5">
-                <button onClick={() => setLibFilter('all')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='all'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>全部</button>
-                <button onClick={() => setLibFilter('image')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='image'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>圖片</button>
-                <button onClick={() => setLibFilter('video')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='video'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>影片</button>
-                <button onClick={() => setLibFilter('file')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='file'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>文件</button>
+                {['all', 'image', 'video', 'file'].map((type) => (
+                    <button 
+                      key={type}
+                      onClick={() => setLibFilter(type as any)} 
+                      className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter === type ? 'bg-slate-700 text-[#deff9a]' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        {type === 'all' ? '全部' : type === 'image' ? '圖片' : type === 'video' ? '影片' : '文件'}
+                    </button>
+                ))}
+            </div>
+
+            {/* 👉 搜尋欄位 */}
+            <div className="p-2 bg-slate-900/30 border-b border-white/5 flex items-center gap-2">
+                <Search size={14} className="text-slate-500 ml-1" />
+                <input 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="搜尋資源名稱..." 
+                    className="bg-transparent border-none text-xs outline-none w-full text-slate-200 placeholder:text-slate-600"
+                    autoFocus
+                />
+                {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} className="text-slate-500 hover:text-white p-1">
+                        <X size={12} />
+                    </button>
+                )}
             </div>
             
             {/* 列表區塊 */}
             <div className="max-h-60 overflow-y-auto p-2 grid gap-1">
                 {filteredLib.map(item => (
-                    <div key={item.id} onClick={() => onSelect(item.url)} className="p-2 bg-slate-900 rounded-lg cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors group">
+                    <div key={item.id} onClick={() => { onSelect(item.url); setSearchTerm(''); }} className="p-2 bg-slate-900 rounded-lg cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors group">
                         <div className="flex items-center overflow-hidden pr-2">
                             {getResourceBadge(item)}
                             <span className="truncate text-xs text-slate-300 group-hover:text-white" title={item.name}>{item.name}</span>
@@ -101,7 +134,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         <span className="text-[#deff9a] text-[10px] font-bold flex-shrink-0 opacity-80 group-hover:opacity-100 bg-slate-800 px-2 py-1 rounded">選取</span>
                     </div>
                 ))}
-                {filteredLib.length === 0 && <div className="text-center text-xs text-slate-500 py-6">無符合的資源</div>}
+                {filteredLib.length === 0 && (
+                    <div className="text-center text-[10px] text-slate-500 py-8 italic uppercase tracking-widest">
+                        No matches found
+                    </div>
+                )}
             </div>
         </div>
     );
