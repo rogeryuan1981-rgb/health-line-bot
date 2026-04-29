@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
-  Handle, Position, useReactFlow // 👉 導入使用核心 Hook
+  Handle, Position, useReactFlow, ReactFlowProvider // 👉 引入 ReactFlowProvider
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, writeBatch, query, orderBy } from 'firebase/firestore';
@@ -11,6 +11,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X } from 'lucide-react';
 
+// --- 子組件：自訂節點 ---
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative">
@@ -25,7 +26,8 @@ const CustomNode = ({ data, isConnectable }: any) => {
 
 const nodeTypes = { custom: CustomNode };
 
-export default function FlowEditor() {
+// --- 核心邏輯內容 (抽離出來以便使用 Hook) ---
+function FlowContent() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
@@ -38,7 +40,7 @@ export default function FlowEditor() {
   const [saveName, setSaveName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const { getViewport } = useReactFlow(); // 👉 獲取當前視角資訊
+  const { getViewport } = useReactFlow(); // 👉 現在這裡有 Provider 包著，不會報錯了
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -97,19 +99,15 @@ export default function FlowEditor() {
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
-  // 👉 核心修正：計算當前視野中心點並新增節點
   const addNewNode = async () => {
     const { x, y, zoom } = getViewport();
-    
-    // 計算邏輯：將畫布偏移量抵消掉，並考慮縮放比例，讓座標落在畫面正中心
-    // 假設容器寬度為 window.innerWidth，高度為 window.innerHeight
     const centerX = (window.innerWidth / 2 - x) / zoom;
     const centerY = (window.innerHeight / 2 - y) / zoom;
 
     await addDoc(collection(db, "flowRules"), { 
       nodeName: "新關鍵字", 
       messageType: "text", 
-      position: { x: centerX - 100, y: centerY - 40 }, // 減去半個節點寬高，使其居中
+      position: { x: centerX - 100, y: centerY - 40 },
       updatedAt: serverTimestamp() 
     });
   };
@@ -152,8 +150,7 @@ export default function FlowEditor() {
   };
 
   return (
-    <div className="w-full h-full relative bg-[#020617] flex overflow-hidden font-sans">
-      
+    <>
       {showSaveModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl shadow-2xl w-96 flex flex-col gap-5 animate-in zoom-in-95">
@@ -191,12 +188,22 @@ export default function FlowEditor() {
                           <Download size={14} className="text-[#deff9a] opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                   ))}
-                  {snapshots.length === 0 && <div className="p-8 text-center text-[10px] text-slate-600">尚無存檔</div>}
               </div>
           </div>
       )}
 
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} onConnect={useCallback(async (params: Connection) => { await addDoc(collection(db, "flowEdges"), { ...params, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp() }); }, [])} onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} connectionMode={ConnectionMode.Loose} deleteKeyCode={["Backspace", "Delete"]} snapToGrid={snapToGrid} snapGrid={[20, 20]} fitView
+      <ReactFlow 
+        nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
+        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
+        onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
+        onConnect={useCallback(async (params: Connection) => { await addDoc(collection(db, "flowEdges"), { ...params, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp() }); }, [])} 
+        onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
+        onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
+        onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
+        onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
+        onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
+        onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} 
+        connectionMode={ConnectionMode.Loose} deleteKeyCode={["Backspace", "Delete"]} snapToGrid={snapToGrid} snapGrid={[20, 20]} fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
@@ -206,6 +213,17 @@ export default function FlowEditor() {
         {activePanel === 'node' && <NodeEditPanel nodeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
         {activePanel === 'edge' && <EdgeEditPanel edgeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
       </div>
+    </>
+  );
+}
+
+// 👉 最終導出：用 ReactFlowProvider 包裹邏輯組件
+export default function FlowEditor() {
+  return (
+    <div className="w-full h-full relative bg-[#020617] flex overflow-hidden font-sans">
+      <ReactFlowProvider>
+        <FlowContent />
+      </ReactFlowProvider>
     </div>
   );
 }
