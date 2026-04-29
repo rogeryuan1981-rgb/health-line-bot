@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, NodeMouseHandler, Connection, ConnectionMode, MarkerType } from 'reactflow';
+// 👉 修正：移除了沒用到的 NodeMouseHandler 型別
+import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
-import EdgeEditPanel from '../message-form/EdgeEditPanel'; // 👉 導入新面板
+import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus } from 'lucide-react';
 
 export default function FlowEditor() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   
-  // 面板控制狀態
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -47,12 +47,11 @@ export default function FlowEditor() {
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
-        // 👉 核心：從資料庫讀取樣式設定
         return { 
           id: d.id, 
           source: data.source, 
           target: data.target, 
-          animated: data.dashed !== false, // 虛線時自動開啟流動動畫
+          animated: data.dashed !== false, 
           style: { 
             stroke: data.color || '#deff9a', 
             strokeWidth: data.strokeWidth || 2,
@@ -75,10 +74,32 @@ export default function FlowEditor() {
     if (!params.source || !params.target) return;
     await addDoc(collection(db, "flowEdges"), {
       source: params.source, target: params.target,
-      color: '#deff9a', strokeWidth: 2, dashed: true, // 預設樣式
+      color: '#deff9a', strokeWidth: 2, dashed: true,
       createdAt: serverTimestamp()
     });
   }, []);
+
+  // 👉 修正：補回鍵盤刪除節點的邏輯，這樣 deleteDoc 就不會報錯了
+  const onNodesDelete = useCallback(async (deletedNodes: Node[]) => {
+    for (const node of deletedNodes) {
+      await deleteDoc(doc(db, "flowRules", node.id));
+      if (node.id === selectedId) {
+        setActivePanel(null);
+        setSelectedId(null);
+      }
+    }
+  }, [selectedId]);
+
+  // 👉 修正：補回鍵盤刪除連線的邏輯
+  const onEdgesDelete = useCallback(async (deletedEdges: Edge[]) => {
+    for (const edge of deletedEdges) {
+      await deleteDoc(doc(db, "flowEdges", edge.id));
+      if (edge.id === selectedId) {
+        setActivePanel(null);
+        setSelectedId(null);
+      }
+    }
+  }, [selectedId]);
 
   const handlePaneClick = () => {
     setActivePanel(null);
@@ -95,19 +116,21 @@ export default function FlowEditor() {
         nodes={nodes} edges={edges} 
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
-        onConnect={onConnect}          
+        onConnect={onConnect}
+        onNodesDelete={onNodesDelete}    /* 👉 綁定刪除節點事件 */
+        onEdgesDelete={onEdgesDelete}    /* 👉 綁定刪除連線事件 */
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
-        onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} // 👉 點擊線條觸發
+        onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={handlePaneClick}
         onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} 
         connectionMode={ConnectionMode.Loose}  
+        deleteKeyCode={["Backspace", "Delete"]} /* 👉 支援鍵盤刪除 */
         fitView
       >
         <Background variant={BackgroundVariant.Lines} gap={40} color="#1e293b" />
         <Controls />
       </ReactFlow>
 
-      {/* 側邊面板容器 */}
       <div className={`absolute right-0 top-0 h-full transition-all duration-500 ease-in-out z-50 ${activePanel ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
         {activePanel === 'node' && <NodeEditPanel nodeId={selectedId} onClose={handlePaneClick} />}
         {activePanel === 'edge' && <EdgeEditPanel edgeId={selectedId} onClose={handlePaneClick} />}
