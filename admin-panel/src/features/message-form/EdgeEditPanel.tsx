@@ -13,8 +13,8 @@ const COLORS = [
 ];
 
 export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | null, onClose: () => void }) {
+  // 👉 修正：移除了沒用到的 isSaving 變數
   const [edgeData, setEdgeData] = useState<any>({ color: '#deff9a', strokeWidth: 2, dashed: true });
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!edgeId) return;
@@ -45,7 +45,6 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
       </div>
 
       <div className="space-y-10 flex-1">
-        {/* 顏色選擇 */}
         <div className="space-y-4">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <Type size={12}/> 連線顏色 (Color)
@@ -64,7 +63,6 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
             </div>
         </div>
 
-        {/* 粗細設定 */}
         <div className="space-y-4">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <Sliders size={12}/> 線條粗細 (Width)
@@ -82,7 +80,6 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
             </div>
         </div>
 
-        {/* 虛線開關 */}
         <div className="space-y-4">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 線條類型 (Type)
