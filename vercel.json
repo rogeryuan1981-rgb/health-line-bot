@@ -1,10 +1,8 @@
 {
-  "cleanUrls": true,
-  "public": true,
   "rewrites": [
     {
       "source": "/resource/(.*)",
-      "destination": "/resource/$1"
+      "destination": "/functions/resource/$1"
     }
   ]
 }
