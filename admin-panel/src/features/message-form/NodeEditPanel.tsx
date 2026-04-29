@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info } from 'lucide-react' // 👉 新增了 Info 圖示
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -109,18 +109,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
       <div className="flex justify-between items-center">
         <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
             {label}
-            {field === 'fileUrl' && (
-                <div className="group relative flex items-center">
-                    <Info size={10} className="text-blue-400 cursor-help" />
-                    <div className="absolute left-4 top-0 w-48 bg-slate-800 text-slate-300 text-[9px] p-2 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-blue-500/30 font-normal normal-case">
-                        LINE 官方限制檔案來源必須為 <strong className="text-blue-400">HTTPS</strong> 開頭的安全連結，否則將無法傳送。
-                    </div>
-                </div>
-            )}
+            {/* 👉 移除複雜的 hover，直接把 HTTPS 要求寫進 Placeholder */}
         </label>
         <button onClick={() => setActiveLib(activeLib === field ? null : field)} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline"><Library size={12}/> 從資源庫調用</button>
       </div>
-      <input value={nodeData[field] || ""} onChange={e => setNodeData({...nodeData, [field]: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder={placeholder} />
+      <input value={nodeData[field] || ""} onChange={e => setNodeData({...nodeData, [field]: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none placeholder:text-slate-600" placeholder={placeholder} />
       {activeLib === field && renderLibraryDropdown((url) => { setNodeData({...nodeData, [field]: url}); setActiveLib(null); })}
     </div>
   );
@@ -140,7 +133,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         <button onClick={() => setActiveLib(activeLib === `image-${idx}` ? null : `image-${idx}`)} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline"><Library size={12}/> 調用資源</button>
                     </div>
                     <div className="flex gap-2">
-                        <input value={url} onChange={e => { const newUrls = [...urls]; newUrls[idx] = e.target.value; setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: e.target.value} : {})}); }} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片 JPG/PNG 網址..." />
+                        {/* 👉 防呆 Placeholder */}
+                        <input value={url} onChange={e => { const newUrls = [...urls]; newUrls[idx] = e.target.value; setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: e.target.value} : {})}); }} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none placeholder:text-slate-600" placeholder="圖片網址 (LINE 限用 https://)" />
                         {urls.length > 1 && (
                             <button onClick={() => { const newUrls = [...urls]; newUrls.splice(idx, 1); setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 && newUrls.length > 0 ? {imageUrl: newUrls[0]} : {})}); }} className="text-red-500 hover:bg-red-500/20 p-2 rounded-xl transition-colors"><Trash2 size={14}/></button>
                         )}
@@ -165,7 +159,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             ))}
         </div>
       )}
-      <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder={placeholder} className={`w-full bg-slate-900 rounded-xl p-4 text-sm outline-none leading-relaxed ${minHeight}`} />
+      <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder={placeholder} className={`w-full bg-slate-900 rounded-xl p-4 text-sm outline-none leading-relaxed placeholder:text-slate-600 ${minHeight}`} />
     </div>
   );
 
@@ -185,7 +179,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
               <div className="flex-[2] space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                     啟動關鍵字
-                    {/* 👉 關鍵字 Hover 說明 */}
                     <div className="group relative flex items-center">
                         <Info size={10} className="text-slate-400 cursor-help hover:text-[#deff9a] transition-colors"/>
                         <div className="absolute left-4 top-0 w-48 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case tracking-normal">
@@ -193,11 +186,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         </div>
                     </div>
                 </label>
-                <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} placeholder="例如: 產品報價" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" />
+                <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} placeholder="例如: 產品報價" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a] placeholder:text-slate-600" />
               </div>
               <div className="flex-1 space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Tag size={10}/> 自定義標籤</label>
-                <input value={nodeData.customLabel || ""} onChange={e => setNodeData({...nodeData, customLabel: e.target.value})} placeholder="標註節點用途" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-400" />
+                <input value={nodeData.customLabel || ""} onChange={e => setNodeData({...nodeData, customLabel: e.target.value})} placeholder="標註節點用途" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-400 placeholder:text-slate-600" />
               </div>
             </div>
 
@@ -209,14 +202,16 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
             {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
                 <div className="flex gap-2 bg-slate-900 p-1 rounded-xl">
-                  <button onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準</button>
-                  <button onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型</button>
+                  <button onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準尺寸</button>
+                  <button onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型尺寸</button>
                 </div>
             )}
 
             <div className="space-y-4 border-t border-white/5 pt-4">
                 {nodeData.messageType === 'text' && renderTextContentInput('純文字回覆內容...', 'min-h-[120px]')}
+                
                 {nodeData.messageType === 'image' && renderMultiImagePicker()}
+                
                 {nodeData.messageType === 'video' && (
                     <div className="space-y-4">
                         <div className="space-y-2">
@@ -224,22 +219,27 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             <label className="text-[10px] font-bold text-slate-500 uppercase">預覽封面 (Cover)</label>
                             <button onClick={() => setActiveLib(activeLib === 'cover' ? null : 'cover')} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline"><Library size={12}/> 從資源庫調用</button>
                           </div>
-                          <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="影片預覽封面網址..." />
+                          {/* 👉 防呆 Placeholder */}
+                          <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none placeholder:text-slate-600" placeholder="影片預覽封面網址 (限 https://)..." />
                           {activeLib === 'cover' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                         </div>
-                        {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片播放網址...')}
+                        {/* 👉 防呆 Placeholder */}
+                        {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片檔案網址 (限 https://)...')}
                         {renderTextContentInput('影片下方說明文字 (選填)...', 'min-h-[80px]')}
                     </div>
                 )}
+
                 {nodeData.messageType === 'file' && (
                     <div className="space-y-4">
-                        {renderResourcePicker('fileUrl', '檔案來源網址', '請輸入 PDF/檔案 網址 (必須為 HTTPS)...')}
+                        {/* 👉 防呆 Placeholder */}
+                        {renderResourcePicker('fileUrl', '檔案來源網址', '請輸入 PDF/檔案 網址 (限 https://)...')}
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase">檔案顯示名稱 (FileName)</label>
-                            <input value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="例如: 2026產品型錄.pdf" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-xs outline-none" />
+                            <input value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="例如: 2026產品型錄.pdf" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-xs outline-none placeholder:text-slate-600" />
                         </div>
                     </div>
                 )}
+
                 {nodeData.messageType === 'flex' && (
                     <div className="space-y-4">
                         <div className="space-y-2">
@@ -247,32 +247,35 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             <label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片 (選填)</label>
                             <button onClick={() => setActiveLib(activeLib === 'flexImg' ? null : 'flexImg')} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline"><Library size={12}/> 從資源庫調用</button>
                           </div>
-                          <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片網址 (不填則為純文字卡片)" />
+                          {/* 👉 防呆 Placeholder */}
+                          <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none placeholder:text-slate-600" placeholder="圖片網址 (限 https://，不填則為純文字卡片)" />
                           {activeLib === 'flexImg' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                         </div>
                         {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
                         
                         <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
                             <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
+                                    <div className="group relative flex items-center">
+                                        <Info size={12} className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" />
+                                        <div className="absolute left-6 top-[-10px] w-56 bg-slate-800 text-blue-300/85 text-[9.5px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-blue-500/30 leading-relaxed tracking-wide font-normal normal-case">
+                                            <span className="text-blue-400 font-bold mb-0.5 block">按鈕觸發秘訣：</span>
+                                            {/* 👉 明確警告必須為 https */}
+                                            • <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 撥打電話<br/>
+                                            • <code className="text-[#deff9a] font-mono px-0.5">https://...</code> 開啟網頁 <span className="text-red-400 font-bold">(LINE 嚴禁 http)</span><br/>
+                                            • 一般文字觸發對話節點
+                                        </div>
+                                    </div>
+                                </div>
                                 <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a]"><Plus size={14}/></button>
                             </div>
                             
-                            {/* 👉 新增：按鈕輸入的高級秘訣提示區塊 */}
-                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 flex items-start gap-1.5 mb-2">
-                                <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                                <div className="text-[9.5px] text-blue-300/85 leading-relaxed tracking-wide">
-                                    <span className="text-blue-400 font-bold mb-0.5 block">按鈕觸發秘訣：</span>
-                                    • 填寫 <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 可撥打電話 (例: tel:0912345678)<br/>
-                                    • 填寫 <code className="text-[#deff9a] font-mono px-0.5">http...</code> 可直接開啟網頁連結<br/>
-                                    • 填寫一般文字，則會觸發具有相同名稱的對話節點
-                                </div>
-                            </div>
-
                             {nodeData.buttons?.map((btn: any, i: number) => (
                                 <div key={i} className="flex gap-2 items-center">
-                                    <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="按鈕文字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none" />
-                                    <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="觸發關鍵字 / tel: / http" className="flex-[1.5] bg-slate-900 rounded p-2 text-xs outline-none focus:ring-1 ring-blue-400" />
+                                    <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="按鈕文字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none placeholder:text-slate-600" />
+                                    {/* 👉 防呆 Placeholder */}
+                                    <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="關鍵字 / tel: / https://" className="flex-[1.5] bg-slate-900 rounded p-2 text-xs outline-none focus:ring-1 ring-blue-400 placeholder:text-slate-600" />
                                     <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1 hover:bg-red-500/20 rounded-full transition-colors"><Trash2 size={12}/></button>
                                 </div>
                             ))}
@@ -282,28 +285,30 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                 {nodeData.messageType === 'carousel' && (
                     <div className="space-y-4">
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 mb-2">
-                            <span>輪播卡片 ({nodeData.cards?.length || 0}/10)</span>
-                            <button onClick={() => setNodeData({...nodeData, cards: [...(nodeData.cards || []), { title: "", price: "", imageUrl: "", buttons: [] }]})} className="text-[#deff9a]"><Plus size={16}/></button>
-                        </div>
-
-                        {/* 👉 新增：輪播全域的高級秘訣提示區塊 */}
-                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 flex items-start gap-1.5 mb-2">
-                            <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                            <div className="text-[9.5px] text-blue-300/85 leading-relaxed tracking-wide">
-                                <span className="text-blue-400 font-bold mb-0.5 block">卡片按鈕秘訣：</span>
-                                觸發關鍵字輸入 <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 可撥打電話，輸入 <code className="text-[#deff9a] font-mono px-0.5">http網址</code> 可開啟網頁。輸入一般文字則會觸發其他對話節點。
+                            <div className="flex items-center gap-1.5">
+                                <span>輪播卡片 ({nodeData.cards?.length || 0}/10)</span>
+                                <div className="group relative flex items-center">
+                                    <Info size={12} className="text-blue-400 cursor-help hover:text-blue-300 transition-colors" />
+                                    <div className="absolute left-6 top-[-10px] w-56 bg-slate-800 text-blue-300/85 text-[9.5px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-blue-500/30 leading-relaxed tracking-wide font-normal normal-case">
+                                        <span className="text-blue-400 font-bold mb-0.5 block">卡片按鈕秘訣：</span>
+                                        {/* 👉 明確警告必須為 https */}
+                                        輸入 <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 撥打電話，<code className="text-[#deff9a] font-mono px-0.5">https://...</code> 開啟網頁 <span className="text-red-400 font-bold">(嚴禁 http)</span>。一般文字觸發其他對話節點。
+                                    </div>
+                                </div>
                             </div>
+                            <button onClick={() => setNodeData({...nodeData, cards: [...(nodeData.cards || []), { title: "", price: "", imageUrl: "", buttons: [] }]})} className="text-[#deff9a]"><Plus size={16}/></button>
                         </div>
 
                         {nodeData.cards?.map((card: any, idx: number) => (
                             <div key={idx} className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-2 relative group mt-2">
-                                <input placeholder="卡片標題" value={card.title} onChange={e => { const nc = [...nodeData.cards]; nc[idx].title = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-sm outline-none" />
-                                <input placeholder="內容/價格" value={card.price} onChange={e => { const nc = [...nodeData.cards]; nc[idx].price = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-xs outline-none" />
+                                <input placeholder="卡片標題" value={card.title} onChange={e => { const nc = [...nodeData.cards]; nc[idx].title = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-sm outline-none placeholder:text-slate-600" />
+                                <input placeholder="內容/價格" value={card.price} onChange={e => { const nc = [...nodeData.cards]; nc[idx].price = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-xs outline-none placeholder:text-slate-600" />
                                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase mt-2">
                                     <span>輪播圖片</span>
                                     <button onClick={() => setActiveLib(activeLib === `carouselImg-${idx}` ? null : `carouselImg-${idx}`)} className="text-[#deff9a] flex items-center gap-1 hover:underline"><Library size={12}/> 調用資源</button>
                                 </div>
-                                <input placeholder="圖片網址" value={card.imageUrl || ""} onChange={e => { const nc = [...nodeData.cards]; nc[idx].imageUrl = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-[10px] outline-none" />
+                                {/* 👉 防呆 Placeholder */}
+                                <input placeholder="圖片網址 (限 https://)..." value={card.imageUrl || ""} onChange={e => { const nc = [...nodeData.cards]; nc[idx].imageUrl = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-[10px] outline-none placeholder:text-slate-600" />
                                 {activeLib === `carouselImg-${idx}` && renderLibraryDropdown((url) => { 
                                     const nc = [...nodeData.cards]; nc[idx].imageUrl = url; setNodeData({...nodeData, cards: nc}); setActiveLib(null); 
                                 })}
@@ -314,8 +319,9 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                                     </div>
                                     {card.buttons?.map((btn: any, bIdx: number) => (
                                         <div key={bIdx} className="flex gap-1 mb-1 items-center">
-                                            <input placeholder="按鈕文字" value={btn.label} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].label = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-1 bg-slate-900 rounded p-1.5 text-[10px] outline-none" />
-                                            <input placeholder="關鍵字 / tel: / http" value={btn.target} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].target = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-[1.5] bg-slate-900 rounded p-1.5 text-[10px] outline-none focus:ring-1 ring-blue-400" />
+                                            <input placeholder="按鈕文字" value={btn.label} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].label = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-1 bg-slate-900 rounded p-1.5 text-[10px] outline-none placeholder:text-slate-600" />
+                                            {/* 👉 防呆 Placeholder */}
+                                            <input placeholder="關鍵字 / tel: / https://" value={btn.target} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].target = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-[1.5] bg-slate-900 rounded p-1.5 text-[10px] outline-none focus:ring-1 ring-blue-400 placeholder:text-slate-600" />
                                             <button onClick={() => { const nc = [...nodeData.cards]; nc[idx].buttons.splice(bIdx,1); setNodeData({...nodeData, cards: nc}) }} className="text-red-500 p-1 hover:bg-red-500/20 rounded transition-colors"><Trash2 size={10}/></button>
                                         </div>
                                     ))}
