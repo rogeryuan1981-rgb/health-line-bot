@@ -14,17 +14,26 @@ const client = new line.Client({
 export const handleWebhook = async (req: Request, res: Response) => {
     const events = req.body.events;
     
-    // 👉 修正 1：統一回傳型別，改為單純 return 中斷執行
     if (!events || events.length === 0) {
         res.status(200).send("OK");
         return; 
     }
 
     await Promise.all(events.map(async (event: any) => {
+        // 目前僅處理文字訊息，如果是貼圖或圖片等其他類型也會觸發兜底，你可以將條件放寬
         if (event.type !== "message" || event.message.type !== "text") return null;
 
         const userMsg = event.message.text;
-        const snap = await db.collection("flowRules").where("nodeName", "==", userMsg).limit(1).get();
+        
+        // 👉 第一道防線：精確比對使用者輸入的關鍵字
+        let snap = await db.collection("flowRules").where("nodeName", "==", userMsg).limit(1).get();
+
+        // 👉 第二道防線 (Fallback)：如果找不到，自動攔截並呼叫「預設回覆」節點
+        if (snap.empty) {
+            snap = await db.collection("flowRules").where("nodeName", "==", "預設回覆").limit(1).get();
+        }
+
+        // 如果你在畫布上連「預設回覆」都還沒建立，就真的只能放生了
         if (snap.empty) return null;
 
         const data = snap.docs[0].data();
@@ -135,6 +144,5 @@ export const handleWebhook = async (req: Request, res: Response) => {
         return client.replyMessage(event.replyToken, reply);
     }));
 
-    // 👉 修正 2：明確結束函式，使 TypeScript 型別判定一致為 void
     res.status(200).send("OK");
 };
