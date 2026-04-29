@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import LineSimulator from '../simulator/LineSimulator'
+import LineSimulator from '../simulator/LineSimulator' // 👉 確保這行被讀取
 
 const EMOJI_LIST = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
@@ -205,7 +205,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                     {nodeData.messageType === 'text' && (
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase">回覆文字</label>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">回覆內容文字</label>
                                 <button onClick={() => setShowEmoji(!showEmoji)} className={`text-[10px] px-2 py-1 rounded transition-colors ${showEmoji ? 'bg-[#deff9a] text-black font-bold' : 'text-[#deff9a] bg-slate-800'}`}><Smile size={12}/> 符號</button>
                             </div>
                             {showEmoji && (
@@ -244,7 +244,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             </div>
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-slate-500 uppercase">顯示檔名</label>
-                              <input value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-xs outline-none" placeholder="例如: 2026產品目錄.pdf" />
+                              <input value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-xs outline-none" placeholder="例如: 產品目錄.pdf" />
                             </div>
                         </div>
                     )}
@@ -294,6 +294,14 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             <Trash2 size={12}/> Delete {isGroup ? 'Group' : 'Node'}
           </button>
       </div>
+
+      {/* 👉 補回被讀取的實機預覽區塊 */}
+      {!isGroup && (
+        <div className="px-6 pb-6 bg-[#1e293b] border-t border-white/5">
+            <h4 className="text-[10px] font-bold text-slate-500 mt-6 mb-4 uppercase tracking-widest">實機預覽</h4>
+            <LineSimulator data={nodeData} />
+        </div>
+      )}
 
       <div className="p-6 border-t border-white/10 bg-slate-900 flex gap-3 z-50">
         {!isGroup && (
