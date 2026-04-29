@@ -1,8 +1,6 @@
 import { 
   LayoutDashboard, 
   Library, 
-  Settings, 
-  History, 
   ChevronRight
 } from 'lucide-react';
 
@@ -12,11 +10,10 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
 }
 
+// 👉 核心修正：僅保留流程編輯器與資源庫，移除不開發的項目
 const menuItems = [
   { id: 'flow', title: "流程編輯器", icon: <LayoutDashboard size={20} /> },
-  { id: 'resources', title: "自動回覆資源庫", icon: <Library size={20} />, badge: "NEW" },
-  { id: 'history', title: "對話紀錄查詢", icon: <History size={20} /> },
-  { id: 'settings', title: "系統設定", icon: <Settings size={20} /> }
+  { id: 'resources', title: "自動回覆資源庫", icon: <Library size={20} />, badge: "NEW" }
 ];
 
 export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
@@ -53,6 +50,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
         ))}
       </nav>
 
+      {/* 底部管理員資訊區 */}
       <div className="p-4 border-t border-white/5 bg-black/20">
         <div className="flex items-center gap-3 px-2">
           <div className="w-8 h-8 rounded-full bg-[#06C755]/20 flex items-center justify-center font-bold text-[#06C755] text-xs">R</div>
