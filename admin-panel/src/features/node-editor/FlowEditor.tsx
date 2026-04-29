@@ -1,11 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType } from 'reactflow';
+import ReactFlow, { 
+  Controls, Background, applyNodeChanges, applyEdgeChanges, 
+  Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
+  Handle, Position // 👉 導入 Handle 與 Position
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag } from 'lucide-react'; // 👉 導入 Flag 圖示
+import { Plus, Flag } from 'lucide-react';
+
+// 👉 核心升級：打造具備「四面八方連接點」的自訂節點
+const CustomNode = ({ data, isConnectable }: any) => {
+  return (
+    <>
+      {/* 上下左右四個磁吸點，使用螢光綠點綴，並解除輸入/輸出的嚴格限制 */}
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+      <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+      
+      {/* 渲染原本的節點內容 */}
+      {data.label}
+    </>
+  );
+};
+
+// 註冊自訂節點類型
+const nodeTypes = { custom: CustomNode };
 
 export default function FlowEditor() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -15,7 +38,6 @@ export default function FlowEditor() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
-    // 👉 如果是開始節點，給予特殊的金色光暈與邊框
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px] scale-110';
     
     switch(type) {
@@ -31,15 +53,14 @@ export default function FlowEditor() {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
         const data = d.data();
-        const isStart = data.nodeName === '預設回覆'; // 👉 判斷是否為開始節點
+        const isStart = data.nodeName === '預設回覆'; 
 
         return {
           id: d.id,
-          type: 'default',
+          type: 'custom', // 👉 關鍵：將類型從 default 改為我們註冊的 custom
           position: data.position || { x: 100, y: 100 },
           data: { label: (
             <div className="flex flex-col items-center gap-1 relative">
-              {/* 👉 核心：針對開始節點顯示大大的跳動標籤 */}
               {isStart && (
                 <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-[11px] shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
                    <span className="text-sm">🚀</span> START / 入口
@@ -68,6 +89,8 @@ export default function FlowEditor() {
           id: d.id, 
           source: data.source, 
           target: data.target, 
+          sourceHandle: data.sourceHandle, // 紀錄是從哪個點連出的
+          targetHandle: data.targetHandle, // 紀錄是連到哪個點的
           animated: data.dashed !== false, 
           style: { 
             stroke: data.color || '#deff9a', 
@@ -90,7 +113,10 @@ export default function FlowEditor() {
   const onConnect = useCallback(async (params: Connection) => {
     if (!params.source || !params.target) return;
     await addDoc(collection(db, "flowEdges"), {
-      source: params.source, target: params.target,
+      source: params.source, 
+      target: params.target,
+      sourceHandle: params.sourceHandle, // 存入起始點位置 (top/bottom/left/right)
+      targetHandle: params.targetHandle, // 存入目標點位置
       color: '#deff9a', strokeWidth: 2, dashed: true,
       createdAt: serverTimestamp()
     });
@@ -129,6 +155,7 @@ export default function FlowEditor() {
 
       <ReactFlow 
         nodes={nodes} edges={edges} 
+        nodeTypes={nodeTypes} /* 👉 注入自訂節點 */
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
         onConnect={onConnect}
