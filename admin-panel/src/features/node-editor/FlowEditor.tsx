@@ -9,7 +9,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet, Save, History, Download } from 'lucide-react';
+import { Plus, Flag, Magnet, Save, History, Download, X } from 'lucide-react';
 
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
@@ -35,6 +35,11 @@ export default function FlowEditor() {
   // 版本管理狀態
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
+  
+  // 👉 新增：專屬儲存彈窗的狀態
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -93,48 +98,50 @@ export default function FlowEditor() {
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
-  // 👉 核心功能：存檔當前畫布
-  const saveCurrentFlow = async () => {
+  // 👉 開啟儲存彈窗並給予預設值
+  const handleOpenSaveModal = () => {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const defaultName = `自動回覆設定_${today}`;
-    const snapshotName = window.prompt("請輸入存檔名稱：", defaultName);
-    
-    if (!snapshotName) return;
-
-    // 打包所有資料
-    const flowData = {
-        name: snapshotName,
-        nodes: nodes.map(n => ({ id: n.id, position: n.position, ...n.data })), // 此處需與資料庫結構同步
-        edges: edges.map(e => ({ source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, style: e.style, type: e.type, animated: e.animated })),
-        createdAt: serverTimestamp()
-    };
-
-    // 這裡我們需要直接讀取原始資料庫的內容來存檔，以確保內容完整
-    const nodeSnaps = await getDocs(collection(db, "flowRules"));
-    const edgeSnaps = await getDocs(collection(db, "flowEdges"));
-
-    await addDoc(collection(db, "flowSnapshots"), {
-        name: snapshotName,
-        nodes: nodeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
-        edges: edgeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
-        createdAt: serverTimestamp()
-    });
-    alert("✅ 全域版本已存檔！");
+    setSaveName(`自動回覆設定_${today}`); // 設定預設名，您可以隨時在畫面上修改
+    setShowSaveModal(true);
   };
 
-  // 👉 核心功能：載入版本
+  // 👉 執行儲存邏輯
+  const executeSave = async () => {
+    if (!saveName.trim()) {
+        alert("存檔名稱不能為空喔！");
+        return;
+    }
+    
+    setIsSaving(true);
+    try {
+        const nodeSnaps = await getDocs(collection(db, "flowRules"));
+        const edgeSnaps = await getDocs(collection(db, "flowEdges"));
+
+        await addDoc(collection(db, "flowSnapshots"), {
+            name: saveName.trim(), // 使用您修改後的名稱存檔
+            nodes: nodeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
+            edges: edgeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
+            createdAt: serverTimestamp()
+        });
+        alert("✅ 版本已成功存檔！");
+        setShowSaveModal(false);
+    } catch (error) {
+        console.error("儲存失敗:", error);
+        alert("儲存發生錯誤");
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const loadSnapshot = async (snap: any) => {
     if (!window.confirm(`⚠️ 載入「${snap.name}」將取代目前畫布，確定繼續？`)) return;
 
     const batch = writeBatch(db);
-
-    // 1. 清除目前的
     const currentNodeSnaps = await getDocs(collection(db, "flowRules"));
     const currentEdgeSnaps = await getDocs(collection(db, "flowEdges"));
     currentNodeSnaps.forEach(d => batch.delete(d.ref));
     currentEdgeSnaps.forEach(d => batch.delete(d.ref));
 
-    // 2. 寫入快照的
     snap.nodes.forEach((n: any) => {
         const { id, ...rest } = n;
         batch.set(doc(db, "flowRules", id), rest);
@@ -154,6 +161,45 @@ export default function FlowEditor() {
   return (
     <div className="w-full h-full relative bg-[#020617] flex overflow-hidden">
       
+      {/* 👉 新增：儲存自訂名稱的彈窗 (Modal) */}
+      {showSaveModal && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] w-96 flex flex-col gap-5 animate-in zoom-in-95">
+            <div>
+                <h3 className="font-black text-[#deff9a] text-lg tracking-widest mb-1 flex items-center gap-2">
+                    <Save size={18} /> 儲存目前版本
+                </h3>
+                <p className="text-xs text-slate-400">請為這次的流程設定命名，方便日後還原管理：</p>
+            </div>
+            
+            <input 
+              value={saveName} 
+              onChange={(e) => setSaveName(e.target.value)} 
+              className="w-full bg-slate-800 text-white border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a] placeholder:text-slate-600"
+              placeholder="例如：春節活動促銷版"
+              autoFocus // 視窗彈出時自動對焦，可直接打字
+            />
+            
+            <div className="flex gap-3 mt-2">
+              <button 
+                onClick={() => setShowSaveModal(false)} 
+                disabled={isSaving}
+                className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={executeSave} 
+                disabled={isSaving}
+                className="flex-1 py-3 rounded-xl bg-[#deff9a] text-black font-black text-xs hover:scale-105 transition-transform flex justify-center items-center gap-2 disabled:opacity-50 disabled:scale-100"
+              >
+                {isSaving ? "儲存中..." : "確定儲存"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 左側功能區 */}
       <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
           <button onClick={async () => { await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: 200, y: 200 }, updatedAt: serverTimestamp() }); }} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform">
@@ -166,7 +212,8 @@ export default function FlowEditor() {
 
           <div className="h-px bg-white/5 my-2 w-full"></div>
 
-          <button onClick={saveCurrentFlow} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-500 transition-colors">
+          {/* 👉 改為觸發我們剛寫好的 Modal */}
+          <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-500 transition-colors">
             <Save size={14}/> 儲存目前版本
           </button>
 
