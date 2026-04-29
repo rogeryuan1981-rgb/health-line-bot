@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
+
+// 👉 內建行銷/客服常用表情符號庫
+const EMOJI_LIST = ['😀','😂','🥺','😍','🙏','👍','💪','❤️','🔥','✨','🎉','💡','✅','❌','⚠️','👇','👉','🎁','📅','💰','🏆','👑','🚀','📍','🔔'];
 
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
   const [nodeData, setNodeData] = useState<any>({
@@ -13,6 +16,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   
   const [library, setLibrary] = useState<any[]>([]);
   const [activeLib, setActiveLib] = useState<'imageUrl' | 'videoUrl' | null>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
     setIsSaving(false);
-    alert("✅ 終極萬能配置成功！");
+    alert("✅ 配置已儲存！");
   };
 
   const renderResourcePicker = (field: 'imageUrl' | 'videoUrl', label: string, placeholder: string) => (
@@ -62,6 +66,37 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     </div>
   );
 
+  // 👉 整合表情符號選取器的通用文字輸入區塊
+  const renderTextContentInput = (placeholder: string, minHeight: string) => (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <label className="text-[10px] font-bold text-slate-500 uppercase">回覆內容文字</label>
+        <button onClick={() => setShowEmoji(!showEmoji)} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline bg-slate-800 px-2 py-1 rounded">
+          <Smile size={12}/> 插入圖示
+        </button>
+      </div>
+      {showEmoji && (
+        <div className="bg-slate-800 p-2 rounded-xl flex flex-wrap gap-1 border border-white/10 animate-in fade-in zoom-in duration-200">
+            {EMOJI_LIST.map(emoji => (
+                <button 
+                  key={emoji} 
+                  onClick={() => setNodeData({...nodeData, textContent: (nodeData.textContent || '') + emoji})} 
+                  className="w-8 h-8 flex items-center justify-center hover:bg-slate-700 rounded text-base transition-colors"
+                >
+                    {emoji}
+                </button>
+            ))}
+        </div>
+      )}
+      <textarea 
+        value={nodeData.textContent || ""} 
+        onChange={e => setNodeData({...nodeData, textContent: e.target.value})} 
+        placeholder={placeholder} 
+        className={`w-full bg-slate-900 rounded-xl p-4 text-sm outline-none ${minHeight}`} 
+      />
+    </div>
+  );
+
   if (!nodeId) return null;
 
   return (
@@ -82,7 +117,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             ))}
         </div>
 
-        {/* 卡片大小選擇 (僅限 FLEX 與 CAROUSEL) */}
         {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
             <div className="flex gap-2 bg-slate-900 p-1 rounded-xl">
               <button onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準尺寸</button>
@@ -93,9 +127,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         <div className="space-y-4 border-t border-white/5 pt-4">
             
             {/* 1. 純文字 */}
-            {nodeData.messageType === 'text' && (
-                <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="純文字回覆內容..." className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[120px] outline-none" />
-            )}
+            {nodeData.messageType === 'text' && renderTextContentInput('純文字回覆內容...', 'min-h-[120px]')}
 
             {/* 2. 圖片 */}
             {nodeData.messageType === 'image' && renderResourcePicker('imageUrl', '圖片來源', '請輸入圖片網址...')}
@@ -105,7 +137,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                 <div className="space-y-4">
                     {renderResourcePicker('imageUrl', '預覽封面 (Cover)', '影片預覽封面網址...')}
                     {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片播放網址...')}
-                    <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="影片下方說明文字 (選填)..." className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px] outline-none" />
+                    {renderTextContentInput('影片下方說明文字 (選填)...', 'min-h-[80px]')}
                 </div>
             )}
 
@@ -113,14 +145,13 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             {nodeData.messageType === 'flex' && (
                 <div className="space-y-4">
                     {renderResourcePicker('imageUrl', '卡片圖片 (選填)', '圖片網址 (不填則為純文字卡片)')}
-                    <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="卡片主體文字 (支援換行)..." className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px] outline-none" />
+                    {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
                     
                     <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                             <span>卡片按鈕設定 ({nodeData.buttons?.length || 0}/4)</span>
                             <button onClick={() => { if((nodeData.buttons?.length || 0) < 4) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a]"><Plus size={14}/></button>
                         </div>
-                        {/* 直覺動線：按鈕樣式選擇器移到這裡 */}
                         <div className="flex gap-2 pb-2 border-b border-white/5">
                             <button onClick={() => setNodeData({...nodeData, btnStyle: 'primary'})} className={`flex-1 py-1.5 rounded text-[10px] font-bold border ${nodeData.btnStyle==='primary'?'border-[#06C755] bg-[#06C755]/10 text-[#06C755]':'border-transparent bg-slate-900 text-slate-500'}`}>綠色實心按鈕</button>
                             <button onClick={() => setNodeData({...nodeData, btnStyle: 'link'})} className={`flex-1 py-1.5 rounded text-[10px] font-bold border ${nodeData.btnStyle==='link'?'border-[#06C755] bg-[#06C755]/10 text-[#06C755]':'border-transparent bg-slate-900 text-slate-500'}`}>透明文字連結</button>
@@ -143,7 +174,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         <span>輪播卡片 ({nodeData.cards?.length || 0}/10)</span>
                         <button onClick={() => setNodeData({...nodeData, cards: [...(nodeData.cards || []), { title: "", price: "", imageUrl: "", buttons: [] }]})} className="text-[#deff9a]"><Plus size={16}/></button>
                     </div>
-                    {/* 輪播卡片的全局按鈕樣式 */}
                     <div className="flex gap-2 bg-slate-800/50 p-2 rounded-xl border border-white/5">
                         <button onClick={() => setNodeData({...nodeData, btnStyle: 'primary'})} className={`flex-1 py-1.5 rounded text-[10px] font-bold border ${nodeData.btnStyle==='primary'?'border-[#06C755] bg-[#06C755]/10 text-[#06C755]':'border-transparent bg-slate-900 text-slate-500'}`}>統一使用: 綠色按鈕</button>
                         <button onClick={() => setNodeData({...nodeData, btnStyle: 'link'})} className={`flex-1 py-1.5 rounded text-[10px] font-bold border ${nodeData.btnStyle==='link'?'border-[#06C755] bg-[#06C755]/10 text-[#06C755]':'border-transparent bg-slate-900 text-slate-500'}`}>統一使用: 透明連結</button>
