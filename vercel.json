@@ -1,6 +1,13 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/resource/(.*)", "destination": "/resource/$1" }
-  ]
+    {
+      "source": "/resource/(.*)",
+      "destination": "/resource/$1"
+    }
+  ],
+  "functions": {
+    "functions/*.js": {
+      "includeFiles": "resource/**"
+    }
+  }
 }
