@@ -9,17 +9,19 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet } from 'lucide-react'; // 👉 導入 Magnet 圖示
+import { Plus, Flag, Magnet } from 'lucide-react';
 
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
-    <>
+    // 👉 確保內部內容滿版並置中
+    <div className="w-full h-full flex flex-col items-center justify-center relative">
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+      
       {data.label}
-    </>
+    </div>
   );
 };
 
@@ -31,12 +33,11 @@ export default function FlowEditor() {
   
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  // 👉 新增：控制「磁吸對齊」功能的開關狀態 (預設開啟)
   const [snapToGrid, setSnapToGrid] = useState(true);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
-    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px] scale-110';
+    // 👉 移除 scale-110，改用 border-[4px] 加粗邊框確保物理尺寸不變
+    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[4px]';
     
     switch(type) {
       case 'carousel':
@@ -58,22 +59,24 @@ export default function FlowEditor() {
           type: 'custom', 
           position: data.position || { x: 100, y: 100 },
           data: { label: (
-            <div className="flex flex-col items-center gap-1 relative">
+            <div className="flex flex-col items-center justify-center gap-1.5 w-full">
               {isStart && (
-                <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-[11px] shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-[11px] shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
                    <span className="text-sm">🚀</span> START / 入口
                 </div>
               )}
-              <div className={`text-[7px] opacity-60 uppercase font-black tracking-tighter ${isStart ? 'text-yellow-400' : ''}`}>
+              <div className={`text-[9px] opacity-60 uppercase font-black tracking-tighter ${isStart ? 'text-yellow-400' : ''}`}>
                 {data.messageType}
               </div>
-              <div className="font-bold text-sm tracking-widest flex items-center gap-1.5">
-                {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
-                {data.nodeName || '新節點'}
+              <div className="font-bold text-base tracking-widest flex items-center justify-center gap-1.5 w-full px-4">
+                {isStart && <Flag size={16} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
+                <span className="truncate">{data.nodeName || '新節點'}</span>
               </div>
             </div>
           )},
-          className: `border-2 shadow-2xl rounded-2xl px-6 py-5 min-w-[180px] text-center transition-all duration-500 ${getNodeStyle(data.messageType, isStart)}`
+          // 👉 核心升級：強制將節點鎖定為寬 240px、高 120px
+          // box-border 會將邊框包含在 240x120 內，保證外部實體尺寸絕對是 20 的完美倍數
+          className: `border-2 shadow-2xl rounded-2xl w-[240px] h-[120px] box-border transition-colors duration-500 ${getNodeStyle(data.messageType, isStart)}`
         };
       }));
     });
@@ -152,7 +155,6 @@ export default function FlowEditor() {
   return (
     <div className="w-full h-full relative bg-[#020617] flex overflow-hidden">
       
-      {/* 左上方控制區塊：整合了新增節點與對齊開關 */}
       <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
           <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform">
             <Plus size={20} /> ADD NODE
@@ -181,12 +183,12 @@ export default function FlowEditor() {
         onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} 
         connectionMode={ConnectionMode.Loose}  
         deleteKeyCode={["Backspace", "Delete"]}
-        snapToGrid={snapToGrid}         /* 👉 開啟/關閉網格磁吸 */
-        snapGrid={[20, 20]}             /* 👉 設定磁吸單位為 20px (恰好是背景網格線的一半，能完美對齊中心與邊緣) */
+        snapToGrid={snapToGrid}         
+        snapGrid={[20, 20]}             
         fitView
       >
-        {/* 背景網格線：預設間距 40px */}
-        <Background variant={BackgroundVariant.Lines} gap={40} color="#1e293b" />
+        {/* 👉 調整為 20px 的網格點矩陣，視覺上完美契合磁吸單位 */}
+        <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
 
