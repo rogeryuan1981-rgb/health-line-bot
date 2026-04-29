@@ -1,4 +1,4 @@
-import { Youtube } from 'lucide-react';
+import { Youtube, FileText } from 'lucide-react';
 
 export default function LineSimulator({ data }: { data: any }) {
   if (!data || !data.nodeName) return null;
@@ -37,9 +37,31 @@ export default function LineSimulator({ data }: { data: any }) {
               </div>
             )}
 
+            {/* 👉 核心升級：顯示多圖堆疊 */}
             {data.messageType === 'image' && (
-              <div className="w-48 bg-white rounded-xl overflow-hidden shadow-sm">
-                <img src={data.imageUrl || defaultImg} className="w-full aspect-square object-cover" alt="Preview" />
+              <div className="flex flex-col gap-2">
+                { (data.imageUrls && data.imageUrls.length > 0 ? data.imageUrls : (data.imageUrl ? [data.imageUrl] : [])).map((u: string, idx: number) => (
+                    <div key={idx} className="w-48 bg-white rounded-xl overflow-hidden shadow-sm">
+                        <img src={u || defaultImg} className="w-full aspect-square object-cover" alt="Preview" />
+                    </div>
+                ))}
+                {(!data.imageUrls?.length && !data.imageUrl) && (
+                    <div className="w-48 bg-white rounded-xl overflow-hidden shadow-sm">
+                        <img src={defaultImg} className="w-full aspect-square object-cover" alt="Preview" />
+                    </div>
+                )}
+              </div>
+            )}
+
+            {data.messageType === 'file' && (
+              <div className="w-48 bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText size={20} />
+                </div>
+                <div className="flex-1 overflow-hidden">
+                    <div className="text-xs font-bold text-slate-800 truncate">{data.textContent || "未命名檔案.pdf"}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">1.0 MB</div>
+                </div>
               </div>
             )}
 
