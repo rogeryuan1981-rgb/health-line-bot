@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
-  Handle, Position, useReactFlow, ReactFlowProvider, NodeProps
+  Handle, Position, useReactFlow, ReactFlowProvider, NodeProps,
+  NodeResizer // 👉 導入縮放組件
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, writeBatch, query, orderBy } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect } from 'lucide-react';
 
-// --- 子組件：標準節點 ---
+// --- 子組件：標準訊息節點 (維持不變) ---
 const CustomNode = ({ data, isConnectable }: any) => (
   <div className="w-full h-full flex flex-col items-center justify-center relative p-2">
     <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
@@ -22,13 +23,23 @@ const CustomNode = ({ data, isConnectable }: any) => (
   </div>
 );
 
-// --- 子組件：群組區塊節點 ---
-const GroupNode = ({ data }: NodeProps) => (
-  <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-    <div className={`absolute -top-3 left-6 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-      {data.title || '未命名區塊'}
+// --- 子組件：群組區塊節點 (核心升級：加入縮放把手) ---
+const GroupNode = ({ data, selected }: NodeProps) => (
+  <>
+    {/* 👉 關鍵：當節點被選中時，顯示縮放框與控制點 */}
+    <NodeResizer 
+      color="#deff9a" 
+      isVisible={selected} 
+      minWidth={100} 
+      minHeight={100} 
+      handleClassName="w-3 h-3 bg-white border-2 border-[#deff9a] rounded-full"
+    />
+    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
+      <div className={`absolute -top-3 left-6 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+        {data.title || '未命名區塊'}
+      </div>
     </div>
-  </div>
+  </>
 );
 
 const nodeTypes = { custom: CustomNode, group: GroupNode };
@@ -63,19 +74,20 @@ function FlowContent() {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
         const data = d.data();
-        // 判斷是否為群組節點
+        
         if (data.messageType === 'group_box') {
           return {
             id: d.id,
             type: 'group',
             position: data.position || { x: 0, y: 0 },
+            // 👉 確保從資料庫讀取寬高
             style: { width: data.width || 400, height: data.height || 300 },
             data: { 
                 title: data.nodeName, 
                 color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5',
                 labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400'
             },
-            zIndex: -1, // 永遠墊在下面
+            zIndex: -1,
           };
         }
 
@@ -85,7 +97,7 @@ function FlowContent() {
           data: { label: (
             <div className="flex flex-col items-center justify-center w-full h-full relative">
               {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50">🚀 START</div>}
-              <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full">
+              <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2">
                 {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
                 <span className="line-clamp-2 leading-snug break-words text-center">{data.nodeName || '新節點'}</span>
               </div>
@@ -126,7 +138,6 @@ function FlowContent() {
     await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: centerX - 100, y: centerY - 40 }, updatedAt: serverTimestamp() });
   };
 
-  // 👉 新功能：新增分組框
   const addGroupBox = async () => {
     const { x, y, zoom } = getViewport();
     const centerX = (window.innerWidth / 2 - x) / zoom;
@@ -134,7 +145,7 @@ function FlowContent() {
     await addDoc(collection(db, "flowRules"), { 
         nodeName: "新區塊", 
         messageType: "group_box", 
-        customLabel: "規劃中", // 對應顏色邏輯
+        customLabel: "規劃中", 
         width: 400, 
         height: 300, 
         position: { x: centerX - 200, y: centerY - 150 }, 
@@ -161,7 +172,7 @@ function FlowContent() {
             createdAt: serverTimestamp()
         });
         setShowSaveModal(false);
-        alert("✅ 版本已存檔！");
+        alert("✅ 版本已成功存檔！");
     } catch (e) { alert("儲存失敗"); } finally { setIsSaving(false); }
   };
 
@@ -176,7 +187,7 @@ function FlowContent() {
     snap.edges.forEach((e: any) => { const { id, ...rest } = e; batch.set(doc(db, "flowEdges", id), rest); });
     await batch.commit();
     setShowSnapshots(false);
-    alert("✅ 載入成功！");
+    alert("✅ 版本載入成功！");
   };
 
   return (
@@ -186,12 +197,12 @@ function FlowContent() {
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl shadow-2xl w-96 flex flex-col gap-5 animate-in zoom-in-95">
             <div>
                 <h3 className="font-black text-[#deff9a] text-lg tracking-widest mb-1 flex items-center gap-2"><Save size={18} /> 儲存目前版本</h3>
-                <p className="text-xs text-slate-400">請輸入存檔名稱：</p>
+                <p className="text-xs text-slate-400">請設定存檔名稱：</p>
             </div>
             <input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="w-full bg-slate-800 text-white border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" autoFocus />
             <div className="flex gap-3 mt-2">
               <button onClick={() => setShowSaveModal(false)} disabled={isSaving} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs">取消</button>
-              <button onClick={executeSave} disabled={isSaving} className="flex-1 py-3 rounded-xl bg-[#deff9a] text-black font-black text-xs">{isSaving ? "儲存中..." : "確定儲存"}</button>
+              <button onClick={executeSave} disabled={isSaving} className="flex-1 py-3 rounded-xl bg-[#deff9a] text-black font-black text-xs">{isSaving ? "處理中..." : "確定儲存"}</button>
             </div>
           </div>
         </div>
@@ -199,12 +210,7 @@ function FlowContent() {
 
       <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
           <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform"><Plus size={20} /> ADD NODE</button>
-          
-          {/* 👉 新增：分組框按鈕 */}
-          <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 transition-all border border-white/10">
-            <BoxSelect size={20} /> ADD GROUP
-          </button>
-
+          <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 transition-all border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30 shadow-lg' : 'bg-slate-900/50 text-slate-500 border-transparent hover:bg-slate-800'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-2 w-full"></div>
           <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-500 transition-colors"><Save size={14}/> 儲存版本</button>
@@ -214,7 +220,7 @@ function FlowContent() {
       {showSnapshots && (
           <div className="absolute top-56 left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
               <div className="p-4 bg-slate-800/50 border-b border-white/5 flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SAVED VERSIONS</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest tracking-tighter">SAVED VERSIONS</span>
                   <button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button>
               </div>
               <div className="max-h-80 overflow-y-auto p-2 space-y-1">
@@ -224,6 +230,7 @@ function FlowContent() {
                           <Download size={14} className="text-[#deff9a] opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                   ))}
+                  {snapshots.length === 0 && <div className="p-8 text-center text-[10px] text-slate-600">尚無存檔</div>}
               </div>
           </div>
       )}
@@ -238,12 +245,12 @@ function FlowContent() {
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
+        // 👉 核心邏輯：當停止拖曳或縮放時，同步寬、高、座標到 Firebase
         onNodeDragStop={async (_, n) => { 
-            // 同時支援節點位移與群組框的大小/位置更新
             const updates: any = { position: n.position };
             if (n.type === 'group') {
-                updates.width = n.style?.width;
-                updates.height = n.style?.height;
+                updates.width = n.width || n.style?.width; // 抓取最新寬度
+                updates.height = n.height || n.style?.height; // 抓取最新高度
             }
             await updateDoc(doc(db, "flowRules", n.id), updates); 
         }} 
