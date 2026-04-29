@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
-  Handle, Position // 👉 導入 Handle 與 Position
+  Handle, Position 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -11,23 +11,18 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag } from 'lucide-react';
 
-// 👉 核心升級：打造具備「四面八方連接點」的自訂節點
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
     <>
-      {/* 上下左右四個磁吸點，使用螢光綠點綴，並解除輸入/輸出的嚴格限制 */}
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
-      
-      {/* 渲染原本的節點內容 */}
       {data.label}
     </>
   );
 };
 
-// 註冊自訂節點類型
 const nodeTypes = { custom: CustomNode };
 
 export default function FlowEditor() {
@@ -57,7 +52,7 @@ export default function FlowEditor() {
 
         return {
           id: d.id,
-          type: 'custom', // 👉 關鍵：將類型從 default 改為我們註冊的 custom
+          type: 'custom', 
           position: data.position || { x: 100, y: 100 },
           data: { label: (
             <div className="flex flex-col items-center gap-1 relative">
@@ -85,19 +80,24 @@ export default function FlowEditor() {
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
+        const arrowDir = data.arrowDirection || 'forward';
+        const markerConfig = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
+
         return { 
           id: d.id, 
           source: data.source, 
           target: data.target, 
-          sourceHandle: data.sourceHandle, // 紀錄是從哪個點連出的
-          targetHandle: data.targetHandle, // 紀錄是連到哪個點的
+          sourceHandle: data.sourceHandle, 
+          targetHandle: data.targetHandle, 
           animated: data.dashed !== false, 
           style: { 
             stroke: data.color || '#deff9a', 
             strokeWidth: data.strokeWidth || 2,
             strokeDasharray: data.dashed ? '5 5' : '', 
           },
-          markerEnd: { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' }
+          // 👉 核心：依據設定的方向，決定要不要渲染起點與終點的箭頭
+          markerEnd: (arrowDir === 'forward' || arrowDir === 'both') ? markerConfig : undefined,
+          markerStart: (arrowDir === 'backward' || arrowDir === 'both') ? markerConfig : undefined,
         };
       }));
     });
@@ -115,9 +115,9 @@ export default function FlowEditor() {
     await addDoc(collection(db, "flowEdges"), {
       source: params.source, 
       target: params.target,
-      sourceHandle: params.sourceHandle, // 存入起始點位置 (top/bottom/left/right)
-      targetHandle: params.targetHandle, // 存入目標點位置
-      color: '#deff9a', strokeWidth: 2, dashed: true,
+      sourceHandle: params.sourceHandle, 
+      targetHandle: params.targetHandle, 
+      color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward',
       createdAt: serverTimestamp()
     });
   }, []);
@@ -155,7 +155,7 @@ export default function FlowEditor() {
 
       <ReactFlow 
         nodes={nodes} edges={edges} 
-        nodeTypes={nodeTypes} /* 👉 注入自訂節點 */
+        nodeTypes={nodeTypes} 
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
         onConnect={onConnect}
