@@ -61,11 +61,9 @@ export default function FlowEditor() {
                    <span className="text-sm">🚀</span> START / 入口
                 </div>
               )}
-              
               <div className={`text-[7px] opacity-60 uppercase font-black tracking-tighter ${isStart ? 'text-yellow-400' : ''}`}>
                 {data.messageType}
               </div>
-              
               <div className="font-bold text-sm tracking-widest flex items-center gap-1.5">
                 {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
                 {data.nodeName || '新節點'}
@@ -89,13 +87,14 @@ export default function FlowEditor() {
           target: data.target, 
           sourceHandle: data.sourceHandle, 
           targetHandle: data.targetHandle, 
+          // 👉 核心：設定為資料庫中的 pathType，預設使用科技折線 (smoothstep)
+          type: data.pathType || 'smoothstep',
           animated: data.dashed !== false, 
           style: { 
             stroke: data.color || '#deff9a', 
             strokeWidth: data.strokeWidth || 2,
             strokeDasharray: data.dashed ? '5 5' : '', 
           },
-          // 👉 核心：依據設定的方向，決定要不要渲染起點與終點的箭頭
           markerEnd: (arrowDir === 'forward' || arrowDir === 'both') ? markerConfig : undefined,
           markerStart: (arrowDir === 'backward' || arrowDir === 'both') ? markerConfig : undefined,
         };
@@ -118,6 +117,7 @@ export default function FlowEditor() {
       sourceHandle: params.sourceHandle, 
       targetHandle: params.targetHandle, 
       color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward',
+      pathType: 'smoothstep', // 👉 預設拉出來的線都是乾淨的折線
       createdAt: serverTimestamp()
     });
   }, []);
