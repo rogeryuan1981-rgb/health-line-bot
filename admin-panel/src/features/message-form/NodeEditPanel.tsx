@@ -45,6 +45,35 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     alert("✅ 配置已儲存！");
   };
 
+  // 👉 核心升級：智慧型資源標籤產生器
+  const getResourceBadge = (item: any) => {
+    const t = (item.type || '').toLowerCase();
+    const u = (item.url || '').toLowerCase();
+    
+    if (t === 'video' || u.includes('youtube') || u.includes('youtu.be') || u.endsWith('.mp4') || u.endsWith('.mov')) {
+        return <span className="bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-rose-500/30 flex-shrink-0">VIDEO</span>;
+    }
+    if (t === 'file' || t === 'pdf' || u.endsWith('.pdf')) {
+        return <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-blue-500/30 flex-shrink-0">FILE</span>;
+    }
+    return <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-emerald-500/30 flex-shrink-0">IMG</span>;
+  };
+
+  // 👉 核心重構：共用的下拉選單組件
+  const renderLibraryDropdown = (onSelect: (url: string) => void) => (
+    <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2 shadow-xl">
+        {library.map(item => (
+            <div key={item.id} onClick={() => onSelect(item.url)} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors group">
+                <div className="flex items-center overflow-hidden pr-2">
+                    {getResourceBadge(item)}
+                    <span className="truncate text-slate-300 group-hover:text-white" title={item.name}>{item.name}</span>
+                </div>
+                <span className="text-[#deff9a] text-[10px] font-bold flex-shrink-0 opacity-80 group-hover:opacity-100">選取</span>
+            </div>
+        ))}
+    </div>
+  );
+
   const renderResourcePicker = (field: 'videoUrl' | 'fileUrl', label: string, placeholder: string) => (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
@@ -59,21 +88,15 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" 
         placeholder={placeholder} 
       />
-      {activeLib === field && (
-        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
-            {library.map(item => (
-                <div key={item.id} onClick={() => { setNodeData({...nodeData, [field]: item.url}); setActiveLib(null); }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
-                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
-                </div>
-            ))}
-        </div>
-      )}
+      {/* 呼叫共用選單 */}
+      {activeLib === field && renderLibraryDropdown((url) => { 
+          setNodeData({...nodeData, [field]: url}); 
+          setActiveLib(null); 
+      })}
     </div>
   );
 
-  // 👉 核心升級：多圖連發選取器
   const renderMultiImagePicker = () => {
-    // 兼容舊資料：如果有舊的單圖 imageUrl 但沒有 imageUrls 陣列，自動轉換
     const urls = (nodeData.imageUrls && nodeData.imageUrls.length > 0) ? nodeData.imageUrls : (nodeData.imageUrl ? [nodeData.imageUrl] : ['']);
     
     return (
@@ -104,20 +127,13 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             }} className="text-red-500 hover:bg-red-500/20 p-2 rounded-xl transition-colors"><Trash2 size={14}/></button>
                         )}
                     </div>
-                    {activeLib === `image-${idx}` && (
-                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
-                            {library.map(item => (
-                                <div key={item.id} onClick={() => { 
-                                    const newUrls = [...urls]; 
-                                    newUrls[idx] = item.url; 
-                                    setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: item.url} : {})}); 
-                                    setActiveLib(null); 
-                                }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
-                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    {/* 呼叫共用選單 */}
+                    {activeLib === `image-${idx}` && renderLibraryDropdown((selectedUrl) => { 
+                        const newUrls = [...urls]; 
+                        newUrls[idx] = selectedUrl; 
+                        setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: selectedUrl} : {})}); 
+                        setActiveLib(null); 
+                    })}
                 </div>
             ))}
         </div>
@@ -185,12 +201,10 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             
             {nodeData.messageType === 'text' && renderTextContentInput('純文字回覆內容...', 'min-h-[120px]')}
 
-            {/* 👉 多圖連發組件 */}
             {nodeData.messageType === 'image' && renderMultiImagePicker()}
 
             {nodeData.messageType === 'video' && (
                 <div className="space-y-4">
-                    {/* 影片因為有自己的封面圖 imageUrl，借用單圖組件 */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">預覽封面 (Cover)</label>
@@ -199,15 +213,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         </button>
                       </div>
                       <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="影片預覽封面網址..." />
-                      {activeLib === 'cover' && (
-                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
-                            {library.map(item => (
-                                <div key={item.id} onClick={() => { setNodeData({...nodeData, imageUrl: item.url}); setActiveLib(null); }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
-                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
-                                </div>
-                            ))}
-                        </div>
-                      )}
+                      {/* 呼叫共用選單 */}
+                      {activeLib === 'cover' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                     </div>
                     {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片播放網址...')}
                     {renderTextContentInput('影片下方說明文字 (選填)...', 'min-h-[80px]')}
@@ -226,7 +233,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
             {nodeData.messageType === 'flex' && (
                 <div className="space-y-4">
-                    {/* Flex 單圖支援 */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片 (選填)</label>
@@ -235,15 +241,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         </button>
                       </div>
                       <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片網址 (不填則為純文字卡片)" />
-                      {activeLib === 'flexImg' && (
-                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
-                            {library.map(item => (
-                                <div key={item.id} onClick={() => { setNodeData({...nodeData, imageUrl: item.url}); setActiveLib(null); }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
-                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
-                                </div>
-                            ))}
-                        </div>
-                      )}
+                      {/* 呼叫共用選單 */}
+                      {activeLib === 'flexImg' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                     </div>
                     {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
                     
