@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info } from 'lucide-react' // 👉 新增了 Info 圖示
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -7,9 +7,9 @@ import LineSimulator from '../simulator/LineSimulator'
 const EMOJI_LIST = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
   '👋','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👍','👎','✊','👊','👏','🙌','🙏',
-  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','啤酒','☕','🎮','辦公室','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','🍺','☕','🎮','辦公室','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
   '0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟',
-  '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','鐘','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
+  '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','🔔','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
 ];
 
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
@@ -107,7 +107,17 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const renderResourcePicker = (field: 'videoUrl' | 'fileUrl', label: string, placeholder: string) => (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
-        <label className="text-[10px] font-bold text-slate-500 uppercase">{label}</label>
+        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+            {label}
+            {field === 'fileUrl' && (
+                <div className="group relative flex items-center">
+                    <Info size={10} className="text-blue-400 cursor-help" />
+                    <div className="absolute left-4 top-0 w-48 bg-slate-800 text-slate-300 text-[9px] p-2 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-blue-500/30 font-normal normal-case">
+                        LINE 官方限制檔案來源必須為 <strong className="text-blue-400">HTTPS</strong> 開頭的安全連結，否則將無法傳送。
+                    </div>
+                </div>
+            )}
+        </label>
         <button onClick={() => setActiveLib(activeLib === field ? null : field)} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline"><Library size={12}/> 從資源庫調用</button>
       </div>
       <input value={nodeData[field] || ""} onChange={e => setNodeData({...nodeData, [field]: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder={placeholder} />
@@ -170,10 +180,19 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col">
         <div className="p-6 space-y-6">
-            {/* 👉 關鍵升級：名稱與自定義標籤一左一右 */}
+            
             <div className="flex gap-4">
               <div className="flex-[2] space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">啟動關鍵字</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    啟動關鍵字
+                    {/* 👉 關鍵字 Hover 說明 */}
+                    <div className="group relative flex items-center">
+                        <Info size={10} className="text-slate-400 cursor-help hover:text-[#deff9a] transition-colors"/>
+                        <div className="absolute left-4 top-0 w-48 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case tracking-normal">
+                            使用者輸入此字詞將觸發本節點。<br/>若設定為 <span className="text-[#deff9a] font-bold">預設回覆</span>，則為查無字詞時的保底節點。
+                        </div>
+                    </div>
+                </label>
                 <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} placeholder="例如: 產品報價" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" />
               </div>
               <div className="flex-1 space-y-1.5">
@@ -232,19 +251,78 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                           {activeLib === 'flexImg' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                         </div>
                         {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
+                        
                         <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
                             <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                                 <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
                                 <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a]"><Plus size={14}/></button>
                             </div>
+                            
+                            {/* 👉 新增：按鈕輸入的高級秘訣提示區塊 */}
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 flex items-start gap-1.5 mb-2">
+                                <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                                <div className="text-[9.5px] text-blue-300/85 leading-relaxed tracking-wide">
+                                    <span className="text-blue-400 font-bold mb-0.5 block">按鈕觸發秘訣：</span>
+                                    • 填寫 <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 可撥打電話 (例: tel:0912345678)<br/>
+                                    • 填寫 <code className="text-[#deff9a] font-mono px-0.5">http...</code> 可直接開啟網頁連結<br/>
+                                    • 填寫一般文字，則會觸發具有相同名稱的對話節點
+                                </div>
+                            </div>
+
                             {nodeData.buttons?.map((btn: any, i: number) => (
                                 <div key={i} className="flex gap-2 items-center">
-                                    <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="文字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none" />
-                                    <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="關鍵字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none" />
-                                    <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1"><Trash2 size={12}/></button>
+                                    <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="按鈕文字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none" />
+                                    <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="觸發關鍵字 / tel: / http" className="flex-[1.5] bg-slate-900 rounded p-2 text-xs outline-none focus:ring-1 ring-blue-400" />
+                                    <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1 hover:bg-red-500/20 rounded-full transition-colors"><Trash2 size={12}/></button>
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+                {nodeData.messageType === 'carousel' && (
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 mb-2">
+                            <span>輪播卡片 ({nodeData.cards?.length || 0}/10)</span>
+                            <button onClick={() => setNodeData({...nodeData, cards: [...(nodeData.cards || []), { title: "", price: "", imageUrl: "", buttons: [] }]})} className="text-[#deff9a]"><Plus size={16}/></button>
+                        </div>
+
+                        {/* 👉 新增：輪播全域的高級秘訣提示區塊 */}
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 flex items-start gap-1.5 mb-2">
+                            <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                            <div className="text-[9.5px] text-blue-300/85 leading-relaxed tracking-wide">
+                                <span className="text-blue-400 font-bold mb-0.5 block">卡片按鈕秘訣：</span>
+                                觸發關鍵字輸入 <code className="text-[#deff9a] font-mono px-0.5">tel:號碼</code> 可撥打電話，輸入 <code className="text-[#deff9a] font-mono px-0.5">http網址</code> 可開啟網頁。輸入一般文字則會觸發其他對話節點。
+                            </div>
+                        </div>
+
+                        {nodeData.cards?.map((card: any, idx: number) => (
+                            <div key={idx} className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-2 relative group mt-2">
+                                <input placeholder="卡片標題" value={card.title} onChange={e => { const nc = [...nodeData.cards]; nc[idx].title = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-sm outline-none" />
+                                <input placeholder="內容/價格" value={card.price} onChange={e => { const nc = [...nodeData.cards]; nc[idx].price = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-xs outline-none" />
+                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase mt-2">
+                                    <span>輪播圖片</span>
+                                    <button onClick={() => setActiveLib(activeLib === `carouselImg-${idx}` ? null : `carouselImg-${idx}`)} className="text-[#deff9a] flex items-center gap-1 hover:underline"><Library size={12}/> 調用資源</button>
+                                </div>
+                                <input placeholder="圖片網址" value={card.imageUrl || ""} onChange={e => { const nc = [...nodeData.cards]; nc[idx].imageUrl = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-[10px] outline-none" />
+                                {activeLib === `carouselImg-${idx}` && renderLibraryDropdown((url) => { 
+                                    const nc = [...nodeData.cards]; nc[idx].imageUrl = url; setNodeData({...nodeData, cards: nc}); setActiveLib(null); 
+                                })}
+                                <div className="pt-2 border-t border-white/5 mt-2">
+                                    <div className="flex justify-between items-center text-[9px] text-slate-500 mb-1">
+                                        <span>按鈕 ({card.buttons?.length || 0}/6)</span>
+                                        <button onClick={() => { if((card.buttons?.length || 0) < 6) { const nc = [...nodeData.cards]; nc[idx].buttons = [...(card.buttons || []), {label: "", target: ""}]; setNodeData({...nodeData, cards: nc}) } }} className="text-[#deff9a]"><Plus size={12}/></button>
+                                    </div>
+                                    {card.buttons?.map((btn: any, bIdx: number) => (
+                                        <div key={bIdx} className="flex gap-1 mb-1 items-center">
+                                            <input placeholder="按鈕文字" value={btn.label} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].label = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-1 bg-slate-900 rounded p-1.5 text-[10px] outline-none" />
+                                            <input placeholder="關鍵字 / tel: / http" value={btn.target} onChange={e => { const nc = [...nodeData.cards]; nc[idx].buttons[bIdx].target = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="flex-[1.5] bg-slate-900 rounded p-1.5 text-[10px] outline-none focus:ring-1 ring-blue-400" />
+                                            <button onClick={() => { const nc = [...nodeData.cards]; nc[idx].buttons.splice(bIdx,1); setNodeData({...nodeData, cards: nc}) }} className="text-red-500 p-1 hover:bg-red-500/20 rounded transition-colors"><Trash2 size={10}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => { const nc = [...nodeData.cards]; nc.splice(idx,1); setNodeData({...nodeData, cards: nc}) }} className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100"><X size={10}/></button>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
