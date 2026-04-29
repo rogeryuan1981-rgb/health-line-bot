@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, NodeMouseHandler, Connection } from 'reactflow';
+import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, NodeMouseHandler, Connection, ConnectionMode } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -65,7 +65,6 @@ export default function FlowEditor() {
   }, []);
 
   const addNewNode = async () => { 
-    // 👉 優化 1：智能出生點定位 (接續在最後一個節點的右下方)
     let newX = 150;
     let newY = 150;
     
@@ -97,7 +96,6 @@ export default function FlowEditor() {
     }
   }, [selectedNodeId]);
 
-  // 👉 優化 2：新增 onConnect，處理連線寫入資料庫
   const onConnect = useCallback(async (params: Connection) => {
     if (!params.source || !params.target) return;
     await addDoc(collection(db, "flowEdges"), {
@@ -107,7 +105,6 @@ export default function FlowEditor() {
     });
   }, []);
 
-  // 👉 優化 3：新增 onEdgesDelete，處理刪除連線時同步資料庫
   const onEdgesDelete = useCallback(async (deletedEdges: Edge[]) => {
     for (const edge of deletedEdges) {
       await deleteDoc(doc(db, "flowEdges", edge.id));
@@ -133,11 +130,13 @@ export default function FlowEditor() {
           onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
           onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
           onNodesDelete={onNodesDelete}
-          onEdgesDelete={onEdgesDelete}  /* 綁定連線刪除 */
-          onConnect={onConnect}          /* 綁定新增連線 */
+          onEdgesDelete={onEdgesDelete}  
+          onConnect={onConnect}          
           onNodeClick={(_, n) => { setSelectedNodeId(n.id); setIsPanelOpen(true); }} 
           onNodeDragStop={onNodeDragStop} 
           onPaneClick={handleClosePanel} 
+          connectionMode={ConnectionMode.Loose}  /* 👉 解鎖 1：寬鬆連線模式 */
+          isValidConnection={() => true}         /* 👉 解鎖 2：強制所有連線皆合法 */
           fitView
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#475569" className="opacity-30" />
