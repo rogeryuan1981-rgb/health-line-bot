@@ -13,7 +13,6 @@ import { Plus, Flag, Magnet } from 'lucide-react';
 
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
-    // 👉 確保內部內容滿版並置中
     <div className="w-full h-full flex flex-col items-center justify-center relative">
       <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
@@ -36,8 +35,7 @@ export default function FlowEditor() {
   const [snapToGrid, setSnapToGrid] = useState(true);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
-    // 👉 移除 scale-110，改用 border-[4px] 加粗邊框確保物理尺寸不變
-    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[4px]';
+    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
     
     switch(type) {
       case 'carousel':
@@ -59,24 +57,32 @@ export default function FlowEditor() {
           type: 'custom', 
           position: data.position || { x: 100, y: 100 },
           data: { label: (
-            <div className="flex flex-col items-center justify-center gap-1.5 w-full">
+            <div className="flex flex-col items-center justify-center w-full h-full relative">
+              {/* 🚀 START 標籤 (隨框體縮小微調了位置) */}
               {isStart && (
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-[11px] shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
-                   <span className="text-sm">🚀</span> START / 入口
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
+                   <span className="text-sm">🚀</span> START
                 </div>
               )}
-              <div className={`text-[9px] opacity-60 uppercase font-black tracking-tighter ${isStart ? 'text-yellow-400' : ''}`}>
-                {data.messageType}
-              </div>
-              <div className="font-bold text-base tracking-widest flex items-center justify-center gap-1.5 w-full px-4">
-                {isStart && <Flag size={16} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
+              
+              {/* 👉 核心：放大的節點名稱，置中飽滿 */}
+              <div className="font-black text-lg tracking-widest flex items-center justify-center gap-2 w-full px-5 mt-[-4px]">
+                {isStart && <Flag size={18} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
                 <span className="truncate">{data.nodeName || '新節點'}</span>
+              </div>
+
+              {/* 👉 核心：將類別標籤移至右下角，放大字體並加上立體徽章底色 */}
+              <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                isStart 
+                  ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' 
+                  : 'bg-black/40 text-white/80 border-white/10'
+              }`}>
+                {data.messageType}
               </div>
             </div>
           )},
-          // 👉 核心升級：強制將節點鎖定為寬 240px、高 120px
-          // box-border 會將邊框包含在 240x120 內，保證外部實體尺寸絕對是 20 的完美倍數
-          className: `border-2 shadow-2xl rounded-2xl w-[240px] h-[120px] box-border transition-colors duration-500 ${getNodeStyle(data.messageType, isStart)}`
+          // 👉 核心：縮小框體至 200x80 (維持 20 的倍數網格對齊)，並加入 p-0 清除多餘內距
+          className: `border-2 shadow-2xl rounded-2xl w-[200px] h-[80px] p-0 flex items-center justify-center box-border transition-colors duration-500 ${getNodeStyle(data.messageType, isStart)}`
         };
       }));
     });
@@ -187,7 +193,6 @@ export default function FlowEditor() {
         snapGrid={[20, 20]}             
         fitView
       >
-        {/* 👉 調整為 20px 的網格點矩陣，視覺上完美契合磁吸單位 */}
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
