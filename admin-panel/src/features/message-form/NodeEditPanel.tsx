@@ -23,6 +23,9 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const [activeLib, setActiveLib] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // 👉 新增：控制資源庫選單的分類過濾器
+  const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
 
   useEffect(() => {
     if (!nodeId) return;
@@ -45,34 +48,64 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     alert("✅ 配置已儲存！");
   };
 
-  // 👉 核心升級：智慧型資源標籤產生器
   const getResourceBadge = (item: any) => {
     const t = (item.type || '').toLowerCase();
     const u = (item.url || '').toLowerCase();
     
     if (t === 'video' || u.includes('youtube') || u.includes('youtu.be') || u.endsWith('.mp4') || u.endsWith('.mov')) {
-        return <span className="bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-rose-500/30 flex-shrink-0">VIDEO</span>;
+        return <span className="w-9 flex justify-center bg-rose-500/20 text-rose-400 px-1 py-0.5 rounded text-[8px] mr-2 font-bold border border-rose-500/30 flex-shrink-0">VIDEO</span>;
     }
     if (t === 'file' || t === 'pdf' || u.endsWith('.pdf')) {
-        return <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-blue-500/30 flex-shrink-0">FILE</span>;
+        return <span className="w-9 flex justify-center bg-blue-500/20 text-blue-400 px-1 py-0.5 rounded text-[8px] mr-2 font-bold border border-blue-500/30 flex-shrink-0">FILE</span>;
     }
-    return <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-[4px] text-[8px] mr-1.5 font-bold border border-emerald-500/30 flex-shrink-0">IMG</span>;
+    return (
+        <div className="w-9 h-9 mr-2 rounded bg-slate-950 overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+            <img src={item.url} alt="thumb" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        </div>
+    );
   };
 
-  // 👉 核心重構：共用的下拉選單組件
-  const renderLibraryDropdown = (onSelect: (url: string) => void) => (
-    <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2 shadow-xl">
-        {library.map(item => (
-            <div key={item.id} onClick={() => onSelect(item.url)} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors group">
-                <div className="flex items-center overflow-hidden pr-2">
-                    {getResourceBadge(item)}
-                    <span className="truncate text-slate-300 group-hover:text-white" title={item.name}>{item.name}</span>
-                </div>
-                <span className="text-[#deff9a] text-[10px] font-bold flex-shrink-0 opacity-80 group-hover:opacity-100">選取</span>
+  // 👉 核心升級：帶有分類過濾按鈕的下拉選單
+  const renderLibraryDropdown = (onSelect: (url: string) => void) => {
+    const filteredLib = library.filter(item => {
+        if (libFilter === 'all') return true;
+        const t = (item.type || '').toLowerCase();
+        const u = (item.url || '').toLowerCase();
+        const isVideo = t === 'video' || u.includes('youtube') || u.includes('youtu.be') || u.endsWith('.mp4') || u.endsWith('.mov');
+        const isFile = t === 'file' || t === 'pdf' || u.endsWith('.pdf');
+        
+        if (libFilter === 'video') return isVideo;
+        if (libFilter === 'file') return isFile;
+        if (libFilter === 'image') return !isVideo && !isFile;
+        return true;
+    });
+
+    return (
+        <div className="bg-slate-800 rounded-xl border border-[#deff9a]/20 mt-2 shadow-2xl z-50 overflow-hidden flex flex-col">
+            {/* 分類按鈕區塊 */}
+            <div className="flex bg-slate-900/50 p-1 border-b border-white/5">
+                <button onClick={() => setLibFilter('all')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='all'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>全部</button>
+                <button onClick={() => setLibFilter('image')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='image'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>圖片</button>
+                <button onClick={() => setLibFilter('video')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='video'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>影片</button>
+                <button onClick={() => setLibFilter('file')} className={`flex-1 text-[10px] py-1.5 font-bold rounded transition-colors ${libFilter==='file'?'bg-slate-700 text-white':'text-slate-500 hover:text-slate-300'}`}>文件</button>
             </div>
-        ))}
-    </div>
-  );
+            
+            {/* 列表區塊 */}
+            <div className="max-h-60 overflow-y-auto p-2 grid gap-1">
+                {filteredLib.map(item => (
+                    <div key={item.id} onClick={() => onSelect(item.url)} className="p-2 bg-slate-900 rounded-lg cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors group">
+                        <div className="flex items-center overflow-hidden pr-2">
+                            {getResourceBadge(item)}
+                            <span className="truncate text-xs text-slate-300 group-hover:text-white" title={item.name}>{item.name}</span>
+                        </div>
+                        <span className="text-[#deff9a] text-[10px] font-bold flex-shrink-0 opacity-80 group-hover:opacity-100 bg-slate-800 px-2 py-1 rounded">選取</span>
+                    </div>
+                ))}
+                {filteredLib.length === 0 && <div className="text-center text-xs text-slate-500 py-6">無符合的資源</div>}
+            </div>
+        </div>
+    );
+  };
 
   const renderResourcePicker = (field: 'videoUrl' | 'fileUrl', label: string, placeholder: string) => (
     <div className="space-y-2">
@@ -88,7 +121,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" 
         placeholder={placeholder} 
       />
-      {/* 呼叫共用選單 */}
       {activeLib === field && renderLibraryDropdown((url) => { 
           setNodeData({...nodeData, [field]: url}); 
           setActiveLib(null); 
@@ -127,7 +159,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             }} className="text-red-500 hover:bg-red-500/20 p-2 rounded-xl transition-colors"><Trash2 size={14}/></button>
                         )}
                     </div>
-                    {/* 呼叫共用選單 */}
                     {activeLib === `image-${idx}` && renderLibraryDropdown((selectedUrl) => { 
                         const newUrls = [...urls]; 
                         newUrls[idx] = selectedUrl; 
@@ -151,13 +182,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
       {showEmoji && (
         <div className="bg-slate-800 p-3 rounded-xl flex flex-wrap gap-1.5 border border-white/10 animate-in fade-in zoom-in duration-200 max-h-60 overflow-y-auto scrollbar-hide shadow-inner">
             {EMOJI_LIST.map((emoji, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={() => setNodeData({...nodeData, textContent: (nodeData.textContent || '') + emoji})} 
-                  className="w-9 h-9 flex items-center justify-center hover:bg-slate-700 active:scale-90 rounded text-xl transition-all"
-                >
-                    {emoji}
-                </button>
+                <button key={idx} onClick={() => setNodeData({...nodeData, textContent: (nodeData.textContent || '') + emoji})} className="w-9 h-9 flex items-center justify-center hover:bg-slate-700 active:scale-90 rounded text-xl transition-all">{emoji}</button>
             ))}
         </div>
       )}
@@ -213,7 +238,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         </button>
                       </div>
                       <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="影片預覽封面網址..." />
-                      {/* 呼叫共用選單 */}
                       {activeLib === 'cover' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                     </div>
                     {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片播放網址...')}
@@ -241,7 +265,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         </button>
                       </div>
                       <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片網址 (不填則為純文字卡片)" />
-                      {/* 呼叫共用選單 */}
                       {activeLib === 'flexImg' && renderLibraryDropdown((url) => { setNodeData({...nodeData, imageUrl: url}); setActiveLib(null); })}
                     </div>
                     {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
@@ -280,9 +303,22 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                         <div key={idx} className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-2 relative group">
                             <input placeholder="卡片標題" value={card.title} onChange={e => { const nc = [...nodeData.cards]; nc[idx].title = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-sm outline-none" />
                             <input placeholder="內容/價格" value={card.price} onChange={e => { const nc = [...nodeData.cards]; nc[idx].price = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-xs outline-none" />
-                            <input placeholder="圖片網址" value={card.imageUrl} onChange={e => { const nc = [...nodeData.cards]; nc[idx].imageUrl = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-[10px] outline-none" />
                             
-                            <div className="pt-2 border-t border-white/5">
+                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase mt-2">
+                                <span>輪播圖片</span>
+                                <button onClick={() => setActiveLib(activeLib === `carouselImg-${idx}` ? null : `carouselImg-${idx}`)} className="text-[#deff9a] flex items-center gap-1 hover:underline">
+                                  <Library size={12}/> 調用資源
+                                </button>
+                            </div>
+                            <input placeholder="圖片網址" value={card.imageUrl || ""} onChange={e => { const nc = [...nodeData.cards]; nc[idx].imageUrl = e.target.value; setNodeData({...nodeData, cards: nc}) }} className="w-full bg-slate-900 rounded px-3 py-2 text-[10px] outline-none" />
+                            {activeLib === `carouselImg-${idx}` && renderLibraryDropdown((url) => { 
+                                const nc = [...nodeData.cards]; 
+                                nc[idx].imageUrl = url; 
+                                setNodeData({...nodeData, cards: nc}); 
+                                setActiveLib(null); 
+                            })}
+                            
+                            <div className="pt-2 border-t border-white/5 mt-2">
                                 <div className="flex justify-between items-center text-[9px] text-slate-500 mb-1">
                                     <span>按鈕 ({card.buttons?.length || 0}/6)</span>
                                     <button onClick={() => { if((card.buttons?.length || 0) < 6) { const nc = [...nodeData.cards]; nc[idx].buttons = [...(card.buttons || []), {label: "", target: ""}]; setNodeData({...nodeData, cards: nc}) } }} className="text-[#deff9a]"><Plus size={12}/></button>
