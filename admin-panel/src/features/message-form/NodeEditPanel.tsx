@@ -4,28 +4,23 @@ import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
 
-// 👉 擴充版表情符號庫：包含表情、手勢、愛心、火焰、數字與專業符號
 const EMOJI_LIST = [
-  // 表情與手勢
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
   '👋','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👍','👎','✊','👊','👏','🙌','🙏',
-  // 愛心、火焰與象形符號
   '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','🍺','☕','🎮','💻','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
-  // 數字序號
   '0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟',
-  // 行銷、功能與方向符號
   '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','🔔','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
 ];
 
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
   const [nodeData, setNodeData] = useState<any>({
     nodeName: "", messageType: 'text', cardSize: 'md', 
-    btnStyle: 'primary', textContent: "", imageUrl: "", videoUrl: "", 
+    btnStyle: 'primary', textContent: "", imageUrl: "", imageUrls: [], videoUrl: "", fileUrl: "", 
     buttons: [], cards: []
   });
   
   const [library, setLibrary] = useState<any[]>([]);
-  const [activeLib, setActiveLib] = useState<'imageUrl' | 'videoUrl' | null>(null);
+  const [activeLib, setActiveLib] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -50,7 +45,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     alert("✅ 配置已儲存！");
   };
 
-  const renderResourcePicker = (field: 'imageUrl' | 'videoUrl', label: string, placeholder: string) => (
+  const renderResourcePicker = (field: 'videoUrl' | 'fileUrl', label: string, placeholder: string) => (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <label className="text-[10px] font-bold text-slate-500 uppercase">{label}</label>
@@ -75,6 +70,59 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
       )}
     </div>
   );
+
+  // 👉 核心升級：多圖連發選取器
+  const renderMultiImagePicker = () => {
+    // 兼容舊資料：如果有舊的單圖 imageUrl 但沒有 imageUrls 陣列，自動轉換
+    const urls = (nodeData.imageUrls && nodeData.imageUrls.length > 0) ? nodeData.imageUrls : (nodeData.imageUrl ? [nodeData.imageUrl] : ['']);
+    
+    return (
+        <div className="space-y-3 bg-slate-800/30 p-4 rounded-xl border border-white/5">
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                <span>多圖連發 (上限 5 張) ({urls.length}/5)</span>
+                <button onClick={() => { if(urls.length < 5) setNodeData({...nodeData, imageUrls: [...urls, '']}) }} className="text-[#deff9a] bg-slate-800 p-1 rounded hover:bg-slate-700 transition-colors"><Plus size={14}/></button>
+            </div>
+            {urls.map((url: string, idx: number) => (
+                <div key={idx} className="space-y-2 border-b border-white/5 pb-3 last:border-0">
+                    <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">第 {idx + 1} 張圖</label>
+                        <button onClick={() => setActiveLib(activeLib === `image-${idx}` ? null : `image-${idx}`)} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline">
+                            <Library size={12}/> 調用資源
+                        </button>
+                    </div>
+                    <div className="flex gap-2">
+                        <input value={url} onChange={e => { 
+                            const newUrls = [...urls]; 
+                            newUrls[idx] = e.target.value; 
+                            setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: e.target.value} : {})}); 
+                        }} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片 JPG/PNG 網址..." />
+                        {urls.length > 1 && (
+                            <button onClick={() => { 
+                                const newUrls = [...urls]; 
+                                newUrls.splice(idx, 1); 
+                                setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 && newUrls.length > 0 ? {imageUrl: newUrls[0]} : {})}); 
+                            }} className="text-red-500 hover:bg-red-500/20 p-2 rounded-xl transition-colors"><Trash2 size={14}/></button>
+                        )}
+                    </div>
+                    {activeLib === `image-${idx}` && (
+                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
+                            {library.map(item => (
+                                <div key={item.id} onClick={() => { 
+                                    const newUrls = [...urls]; 
+                                    newUrls[idx] = item.url; 
+                                    setNodeData({...nodeData, imageUrls: newUrls, ...(idx === 0 ? {imageUrl: item.url} : {})}); 
+                                    setActiveLib(null); 
+                                }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
+                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    )
+  };
 
   const renderTextContentInput = (placeholder: string, minHeight: string) => (
     <div className="space-y-2">
@@ -120,8 +168,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
         <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} placeholder="啟動關鍵字" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" />
 
-        <div className="grid grid-cols-5 gap-1 p-1 bg-slate-900 rounded-lg">
-            {['text', 'image', 'video', 'flex', 'carousel'].map(t => (
+        <div className="grid grid-cols-6 gap-1 p-1 bg-slate-900 rounded-lg">
+            {['text', 'image', 'video', 'file', 'flex', 'carousel'].map(t => (
                 <button key={t} onClick={() => setNodeData({...nodeData, messageType: t})} className={`py-2 rounded-md text-[9px] font-bold uppercase transition-all ${nodeData.messageType === t ? 'bg-slate-700 text-[#deff9a]' : 'text-slate-500'}`}>{t}</button>
             ))}
         </div>
@@ -137,19 +185,66 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             
             {nodeData.messageType === 'text' && renderTextContentInput('純文字回覆內容...', 'min-h-[120px]')}
 
-            {nodeData.messageType === 'image' && renderResourcePicker('imageUrl', '圖片來源', '請輸入圖片網址...')}
+            {/* 👉 多圖連發組件 */}
+            {nodeData.messageType === 'image' && renderMultiImagePicker()}
 
             {nodeData.messageType === 'video' && (
                 <div className="space-y-4">
-                    {renderResourcePicker('imageUrl', '預覽封面 (Cover)', '影片預覽封面網址...')}
+                    {/* 影片因為有自己的封面圖 imageUrl，借用單圖組件 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">預覽封面 (Cover)</label>
+                        <button onClick={() => setActiveLib(activeLib === 'cover' ? null : 'cover')} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline">
+                          <Library size={12}/> 從資源庫調用
+                        </button>
+                      </div>
+                      <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="影片預覽封面網址..." />
+                      {activeLib === 'cover' && (
+                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
+                            {library.map(item => (
+                                <div key={item.id} onClick={() => { setNodeData({...nodeData, imageUrl: item.url}); setActiveLib(null); }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
+                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
+                                </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                     {renderResourcePicker('videoUrl', '影片來源 (Source)', '影片播放網址...')}
                     {renderTextContentInput('影片下方說明文字 (選填)...', 'min-h-[80px]')}
                 </div>
             )}
 
+            {nodeData.messageType === 'file' && (
+                <div className="space-y-4">
+                    {renderResourcePicker('fileUrl', '檔案來源網址', '請輸入 PDF/檔案 網址 (必須為 HTTPS)...')}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">檔案顯示名稱 (FileName)</label>
+                        <input value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="例如: 2026產品型錄.pdf" className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-xs outline-none" />
+                    </div>
+                </div>
+            )}
+
             {nodeData.messageType === 'flex' && (
                 <div className="space-y-4">
-                    {renderResourcePicker('imageUrl', '卡片圖片 (選填)', '圖片網址 (不填則為純文字卡片)')}
+                    {/* Flex 單圖支援 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片 (選填)</label>
+                        <button onClick={() => setActiveLib(activeLib === 'flexImg' ? null : 'flexImg')} className="text-[#deff9a] flex items-center gap-1 text-[10px] hover:underline">
+                          <Library size={12}/> 從資源庫調用
+                        </button>
+                      </div>
+                      <input value={nodeData.imageUrl || ""} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="圖片網址 (不填則為純文字卡片)" />
+                      {activeLib === 'flexImg' && (
+                        <div className="bg-slate-800 rounded-xl p-2 grid gap-1 border border-[#deff9a]/20 max-h-40 overflow-y-auto mt-2">
+                            {library.map(item => (
+                                <div key={item.id} onClick={() => { setNodeData({...nodeData, imageUrl: item.url}); setActiveLib(null); }} className="p-2 bg-slate-900 rounded text-xs cursor-pointer hover:bg-slate-700 flex justify-between">
+                                    <span>{item.name}</span> <span className="text-[#deff9a]">選取</span>
+                                </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                     {renderTextContentInput('卡片主體文字 (支援換行)...', 'min-h-[80px]')}
                     
                     <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
