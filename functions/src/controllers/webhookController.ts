@@ -33,7 +33,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const data = snap.docs[0].data();
         let reply: any;
 
-        // 👉 終極防護 1：過濾空白按鈕、確保 URI 格式正確
+        // 👉 終極防護 1：過濾空白按鈕、確保 URI 格式正確 (升級支援 tel: 電話連結)
         const mapButtons = (btns: any[], style: string) => {
             // 只保留有填寫標籤或目標的合法按鈕
             const validBtns = (btns || []).filter(b => b.label || b.target);
@@ -41,14 +41,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
             return validBtns.map((btn: any) => {
                 const target = (btn.target || "").trim();
-                const isUrl = target.toLowerCase().startsWith('http');
+                // 👉 核心修正：判斷是否為 HTTP 網址 或 TEL 電話
+                const isUriAction = target.toLowerCase().startsWith('http') || target.toLowerCase().startsWith('tel:');
                 
                 return {
                     type: "button",
                     height: "sm",
                     style: style === 'link' ? "link" : "primary",
                     color: style === 'link' ? "#5584C0" : "#06C755", 
-                    action: isUrl 
+                    action: isUriAction 
                         ? { type: "uri", label: btn.label || "開啟連結", uri: target } 
                         : { type: "message", label: btn.label || "選擇", text: target || btn.label || "無效指令" } 
                 };
