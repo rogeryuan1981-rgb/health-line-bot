@@ -58,20 +58,18 @@ export default function FlowEditor() {
           position: data.position || { x: 100, y: 100 },
           data: { label: (
             <div className="flex flex-col items-center justify-center w-full h-full relative">
-              {/* 🚀 START 標籤 (隨框體縮小微調了位置) */}
               {isStart && (
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
                    <span className="text-sm">🚀</span> START
                 </div>
               )}
               
-              {/* 👉 核心：放大的節點名稱，置中飽滿 */}
-              <div className="font-black text-lg tracking-widest flex items-center justify-center gap-2 w-full px-5 mt-[-4px]">
-                {isStart && <Flag size={18} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
-                <span className="truncate">{data.nodeName || '新節點'}</span>
+              {/* 👉 核心修正：將字體降為 text-sm，加入 line-clamp-2 允許最多兩行換行 */}
+              <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-3 mt-[-2px]">
+                {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
+                <span className="line-clamp-2 leading-snug break-words">{data.nodeName || '新節點'}</span>
               </div>
 
-              {/* 👉 核心：將類別標籤移至右下角，放大字體並加上立體徽章底色 */}
               <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-sm ${
                 isStart 
                   ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' 
@@ -81,7 +79,6 @@ export default function FlowEditor() {
               </div>
             </div>
           )},
-          // 👉 核心：縮小框體至 200x80 (維持 20 的倍數網格對齊)，並加入 p-0 清除多餘內距
           className: `border-2 shadow-2xl rounded-2xl w-[200px] h-[80px] p-0 flex items-center justify-center box-border transition-colors duration-500 ${getNodeStyle(data.messageType, isStart)}`
         };
       }));
