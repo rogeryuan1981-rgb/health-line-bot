@@ -1,13 +1,11 @@
 {
-  "rewrites": [
-    {
-      "source": "/resource/(.*)",
-      "destination": "/resource/$1"
-    }
+  "version": 2,
+  "public": true,
+  "builds": [
+    { "src": "functions/*.js", "use": "@vercel/node" },
+    { "src": "resource/**", "use": "@vercel/static" }
   ],
-  "functions": {
-    "functions/*.js": {
-      "includeFiles": "resource/**"
-    }
-  }
+  "rewrites": [
+    { "source": "/resource/(.*)", "destination": "/resource/$1" }
+  ]
 }
