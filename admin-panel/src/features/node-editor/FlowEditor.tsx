@@ -9,7 +9,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag } from 'lucide-react';
+import { Plus, Flag, Magnet } from 'lucide-react'; // 👉 導入 Magnet 圖示
 
 const CustomNode = ({ data, isConnectable }: any) => {
   return (
@@ -31,6 +31,9 @@ export default function FlowEditor() {
   
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // 👉 新增：控制「磁吸對齊」功能的開關狀態 (預設開啟)
+  const [snapToGrid, setSnapToGrid] = useState(true);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px] scale-110';
@@ -87,7 +90,6 @@ export default function FlowEditor() {
           target: data.target, 
           sourceHandle: data.sourceHandle, 
           targetHandle: data.targetHandle, 
-          // 👉 核心：設定為資料庫中的 pathType，預設使用科技折線 (smoothstep)
           type: data.pathType || 'smoothstep',
           animated: data.dashed !== false, 
           style: { 
@@ -117,7 +119,7 @@ export default function FlowEditor() {
       sourceHandle: params.sourceHandle, 
       targetHandle: params.targetHandle, 
       color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward',
-      pathType: 'smoothstep', // 👉 預設拉出來的線都是乾淨的折線
+      pathType: 'smoothstep', 
       createdAt: serverTimestamp()
     });
   }, []);
@@ -149,9 +151,21 @@ export default function FlowEditor() {
 
   return (
     <div className="w-full h-full relative bg-[#020617] flex overflow-hidden">
-      <button onClick={addNewNode} className="absolute top-8 left-8 z-10 bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center gap-2 hover:scale-105 transition-transform">
-        <Plus size={20} /> ADD NODE
-      </button>
+      
+      {/* 左上方控制區塊：整合了新增節點與對齊開關 */}
+      <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
+          <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform">
+            <Plus size={20} /> ADD NODE
+          </button>
+          
+          <button 
+            onClick={() => setSnapToGrid(!snapToGrid)} 
+            className={`px-4 py-2 rounded-xl text-xs font-bold tracking-widest flex items-center justify-center gap-2 transition-all border ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30 shadow-lg' : 'bg-slate-900/50 text-slate-500 border-transparent hover:bg-slate-800'}`}
+          >
+            <Magnet size={14} className={snapToGrid ? 'text-[#deff9a]' : 'text-slate-500'} /> 
+            磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}
+          </button>
+      </div>
 
       <ReactFlow 
         nodes={nodes} edges={edges} 
@@ -167,8 +181,11 @@ export default function FlowEditor() {
         onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} 
         connectionMode={ConnectionMode.Loose}  
         deleteKeyCode={["Backspace", "Delete"]}
+        snapToGrid={snapToGrid}         /* 👉 開啟/關閉網格磁吸 */
+        snapGrid={[20, 20]}             /* 👉 設定磁吸單位為 20px (恰好是背景網格線的一半，能完美對齊中心與邊緣) */
         fitView
       >
+        {/* 背景網格線：預設間距 40px */}
         <Background variant={BackgroundVariant.Lines} gap={40} color="#1e293b" />
         <Controls />
       </ReactFlow>
