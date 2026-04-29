@@ -1,0 +1,8 @@
+{
+  "routes": [
+    {
+      "src": "/resource/(.*)",
+      "dest": "/resource/$1"
+    }
+  ]
+}
