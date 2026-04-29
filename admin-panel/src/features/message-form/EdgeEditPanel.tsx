@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Trash2, Palette, Type, Sliders, ArrowRight, ArrowLeft, ArrowLeftRight, Minus } from 'lucide-react'
+import { X, Trash2, Palette, Type, Sliders, ArrowRight, ArrowLeft, ArrowLeftRight, Minus, Activity, Spline, MoveDiagonal } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 
@@ -13,7 +13,8 @@ const COLORS = [
 ];
 
 export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | null, onClose: () => void }) {
-  const [edgeData, setEdgeData] = useState<any>({ color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward' });
+  // 👉 預設加入 pathType 狀態
+  const [edgeData, setEdgeData] = useState<any>({ color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep' });
 
   useEffect(() => {
     if (!edgeId) return;
@@ -45,7 +46,34 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
 
       <div className="space-y-8 flex-1 overflow-y-auto scrollbar-hide">
         
-        {/* 👉 新增：箭頭方向選擇 */}
+        {/* 👉 新增：連線路徑風格 (電路板折線 / 貝茲曲線 / 直線) */}
+        <div className="space-y-4">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Activity size={12}/> 路徑風格 (Path Style)
+            </label>
+            <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1 rounded-xl">
+                <button 
+                    onClick={() => handleUpdate({ pathType: 'smoothstep' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${(!edgeData.pathType || edgeData.pathType === 'smoothstep') ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <Activity size={16}/> 科技折線
+                </button>
+                <button 
+                    onClick={() => handleUpdate({ pathType: 'default' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${edgeData.pathType === 'default' ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <Spline size={16}/> 柔和曲線
+                </button>
+                <button 
+                    onClick={() => handleUpdate({ pathType: 'straight' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${edgeData.pathType === 'straight' ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <MoveDiagonal size={16}/> 剛硬直線
+                </button>
+            </div>
+        </div>
+
+        {/* 箭頭方向選擇 */}
         <div className="space-y-4">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <ArrowRight size={12}/> 箭頭方向 (Direction)
