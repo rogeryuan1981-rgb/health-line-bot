@@ -1,8 +1,10 @@
 {
-  "routes": [
+  "cleanUrls": true,
+  "public": true,
+  "rewrites": [
     {
-      "src": "/resource/(.*)",
-      "dest": "/resource/$1"
+      "source": "/resource/(.*)",
+      "destination": "/resource/$1"
     }
   ]
 }
