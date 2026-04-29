@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Trash2, Palette, Type, Sliders } from 'lucide-react'
+import { X, Trash2, Palette, Type, Sliders, ArrowRight, ArrowLeft, ArrowLeftRight, Minus } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 
@@ -13,8 +13,7 @@ const COLORS = [
 ];
 
 export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | null, onClose: () => void }) {
-  // 👉 修正：移除了沒用到的 isSaving 變數
-  const [edgeData, setEdgeData] = useState<any>({ color: '#deff9a', strokeWidth: 2, dashed: true });
+  const [edgeData, setEdgeData] = useState<any>({ color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward' });
 
   useEffect(() => {
     if (!edgeId) return;
@@ -36,7 +35,7 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
 
   return (
     <div className="w-[400px] h-full bg-[#0F172A] border-l border-white/10 flex flex-col shadow-2xl absolute right-0 top-0 z-40 text-white p-6 font-sans">
-      <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-5">
+      <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-5">
         <div className="flex items-center gap-2">
             <Palette className="text-[#deff9a]" size={20} />
             <h3 className="font-black text-sm italic tracking-tighter text-[#deff9a]">LINE STYLE EDITOR</h3>
@@ -44,7 +43,41 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
         <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={20}/></button>
       </div>
 
-      <div className="space-y-10 flex-1">
+      <div className="space-y-8 flex-1 overflow-y-auto scrollbar-hide">
+        
+        {/* 👉 新增：箭頭方向選擇 */}
+        <div className="space-y-4">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <ArrowRight size={12}/> 箭頭方向 (Direction)
+            </label>
+            <div className="grid grid-cols-4 gap-2 bg-slate-900 p-1 rounded-xl">
+                <button 
+                    onClick={() => handleUpdate({ arrowDirection: 'forward' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${(!edgeData.arrowDirection || edgeData.arrowDirection === 'forward') ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <ArrowRight size={16}/> 正向
+                </button>
+                <button 
+                    onClick={() => handleUpdate({ arrowDirection: 'backward' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${edgeData.arrowDirection === 'backward' ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <ArrowLeft size={16}/> 反向
+                </button>
+                <button 
+                    onClick={() => handleUpdate({ arrowDirection: 'both' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${edgeData.arrowDirection === 'both' ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <ArrowLeftRight size={16}/> 雙向
+                </button>
+                <button 
+                    onClick={() => handleUpdate({ arrowDirection: 'none' })}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-bold transition-all ${edgeData.arrowDirection === 'none' ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <Minus size={16}/> 無箭頭
+                </button>
+            </div>
+        </div>
+
         <div className="space-y-4">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <Type size={12}/> 連線顏色 (Color)
@@ -101,7 +134,7 @@ export default function EdgeEditPanel({ edgeId, onClose }: { edgeId: string | nu
         </div>
       </div>
 
-      <div className="pt-10 border-t border-white/5">
+      <div className="pt-8 border-t border-white/5">
         <button 
             onClick={async () => { if(window.confirm("移除這條連線？")) { await deleteDoc(doc(db, "flowEdges", edgeId)); onClose(); } }}
             className="w-full py-4 text-red-500/50 hover:text-red-500 text-[10px] font-bold tracking-widest uppercase flex items-center justify-center gap-2 transition-colors"
