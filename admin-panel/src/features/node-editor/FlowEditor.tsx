@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-// 👉 修正：移除了沒用到的 NodeMouseHandler 型別
 import ReactFlow, { Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus } from 'lucide-react';
+import { Plus, Flag } from 'lucide-react'; // 👉 導入 Flag 圖示
 
 export default function FlowEditor() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -15,7 +14,10 @@ export default function FlowEditor() {
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const getNodeStyle = (type: string) => {
+  const getNodeStyle = (type: string, isStart: boolean) => {
+    // 👉 如果是開始節點，給予特殊的金色光暈與邊框
+    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px] scale-110';
+    
     switch(type) {
       case 'carousel':
       case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
@@ -29,17 +31,32 @@ export default function FlowEditor() {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
         const data = d.data();
+        const isStart = data.nodeName === '預設回覆'; // 👉 判斷是否為開始節點
+
         return {
           id: d.id,
           type: 'default',
           position: data.position || { x: 100, y: 100 },
           data: { label: (
-            <div className="flex flex-col items-center gap-1">
-              <div className="text-[7px] opacity-60 uppercase font-black tracking-tighter">{data.messageType}</div>
-              <div className="font-bold text-sm tracking-widest">{data.nodeName || '新節點'}</div>
+            <div className="flex flex-col items-center gap-1 relative">
+              {/* 👉 核心：針對開始節點顯示大大的跳動標籤 */}
+              {isStart && (
+                <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-[11px] shadow-2xl animate-bounce flex items-center gap-1.5 whitespace-nowrap border-2 border-black z-50">
+                   <span className="text-sm">🚀</span> START / 入口
+                </div>
+              )}
+              
+              <div className={`text-[7px] opacity-60 uppercase font-black tracking-tighter ${isStart ? 'text-yellow-400' : ''}`}>
+                {data.messageType}
+              </div>
+              
+              <div className="font-bold text-sm tracking-widest flex items-center gap-1.5">
+                {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
+                {data.nodeName || '新節點'}
+              </div>
             </div>
           )},
-          className: `border-2 shadow-2xl rounded-2xl px-6 py-4 min-w-[160px] text-center ${getNodeStyle(data.messageType)}`
+          className: `border-2 shadow-2xl rounded-2xl px-6 py-5 min-w-[180px] text-center transition-all duration-500 ${getNodeStyle(data.messageType, isStart)}`
         };
       }));
     });
@@ -79,7 +96,6 @@ export default function FlowEditor() {
     });
   }, []);
 
-  // 👉 修正：補回鍵盤刪除節點的邏輯，這樣 deleteDoc 就不會報錯了
   const onNodesDelete = useCallback(async (deletedNodes: Node[]) => {
     for (const node of deletedNodes) {
       await deleteDoc(doc(db, "flowRules", node.id));
@@ -90,7 +106,6 @@ export default function FlowEditor() {
     }
   }, [selectedId]);
 
-  // 👉 修正：補回鍵盤刪除連線的邏輯
   const onEdgesDelete = useCallback(async (deletedEdges: Edge[]) => {
     for (const edge of deletedEdges) {
       await deleteDoc(doc(db, "flowEdges", edge.id));
@@ -117,14 +132,14 @@ export default function FlowEditor() {
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
         onConnect={onConnect}
-        onNodesDelete={onNodesDelete}    /* 👉 綁定刪除節點事件 */
-        onEdgesDelete={onEdgesDelete}    /* 👉 綁定刪除連線事件 */
+        onNodesDelete={onNodesDelete}
+        onEdgesDelete={onEdgesDelete}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={handlePaneClick}
         onNodeDragStop={async (_, n) => { await updateDoc(doc(db, "flowRules", n.id), { position: n.position }); }} 
         connectionMode={ConnectionMode.Loose}  
-        deleteKeyCode={["Backspace", "Delete"]} /* 👉 支援鍵盤刪除 */
+        deleteKeyCode={["Backspace", "Delete"]}
         fitView
       >
         <Background variant={BackgroundVariant.Lines} gap={40} color="#1e293b" />
