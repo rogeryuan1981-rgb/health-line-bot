@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import FlowEditor from './features/node-editor/FlowEditor';
 import ResourceLibrary from './features/resources/ResourceLibrary';
-import AuthWrapper from './features/auth/AuthWrapper'; // 🚀 匯入權限守衛
+import AuthWrapper from './auth/AuthWrapper';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('flow'); // 'flow' | 'resources'
