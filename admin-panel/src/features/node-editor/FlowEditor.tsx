@@ -3,7 +3,7 @@ import ReactFlow, {
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
   Handle, Position, useReactFlow, ReactFlowProvider, NodeProps,
-  NodeResizer // 👉 導入縮放組件
+  NodeResizer 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs, writeBatch, query, orderBy } from 'firebase/firestore';
@@ -12,30 +12,34 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect } from 'lucide-react';
 
-// --- 子組件：標準訊息節點 (維持不變) ---
+// --- 子組件：標準訊息節點 (優化佈局結構) ---
 const CustomNode = ({ data, isConnectable }: any) => (
-  <div className="w-full h-full flex flex-col items-center justify-center relative p-2">
+  <div className="w-full h-full relative">
+    {/* 4個連接點 */}
     <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
-    {data.label}
+    
+    {/* 核心內容層：確保內容與標籤互不干擾 */}
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+      {data.label}
+    </div>
   </div>
 );
 
-// --- 子組件：群組區塊節點 (核心升級：加入縮放把手) ---
+// --- 子組件：群組區塊節點 ---
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
-    {/* 👉 關鍵：當節點被選中時，顯示縮放框與控制點 */}
     <NodeResizer 
       color="#deff9a" 
       isVisible={selected} 
-      minWidth={100} 
+      minWidth={150} 
       minHeight={100} 
       handleClassName="w-3 h-3 bg-white border-2 border-[#deff9a] rounded-full"
     />
     <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-      <div className={`absolute -top-3 left-6 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
         {data.title || '未命名區塊'}
       </div>
     </div>
@@ -80,7 +84,6 @@ function FlowContent() {
             id: d.id,
             type: 'group',
             position: data.position || { x: 0, y: 0 },
-            // 👉 確保從資料庫讀取寬高
             style: { width: data.width || 400, height: data.height || 300 },
             data: { 
                 title: data.nodeName, 
@@ -95,17 +98,32 @@ function FlowContent() {
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
           data: { label: (
-            <div className="flex flex-col items-center justify-center w-full h-full relative">
+            <>
+              {/* 🚀 START 標籤 */}
               {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50">🚀 START</div>}
-              <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2">
+              
+              {/* 📝 置中文字主體 */}
+              <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 mb-2">
                 {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
                 <span className="line-clamp-2 leading-snug break-words text-center">{data.nodeName || '新節點'}</span>
               </div>
-              {data.customLabel && <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 max-w-[85px] truncate">{data.customLabel}</div>}
-              <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>{data.messageType}</div>
-            </div>
+
+              {/* 🏷️ 左下角自定義標籤 (修正：貼緊邊緣) */}
+              {data.customLabel && (
+                <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 max-w-[85px] truncate">
+                  {data.customLabel}
+                </div>
+              )}
+
+              {/* 🏷️ 右下角訊息類別 (修正：貼緊邊緣) */}
+              <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm ${
+                isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'
+              }`}>
+                {data.messageType}
+              </div>
+            </>
           )},
-          className: `border-2 shadow-2xl rounded-2xl w-[200px] h-[80px] flex items-center justify-center box-border transition-all duration-300 ${getNodeStyle(data.messageType, isStart)}`
+          className: `border-2 shadow-2xl rounded-2xl w-[200px] h-[80px] transition-all duration-300 ${getNodeStyle(data.messageType, isStart)}`
         };
       }));
     });
@@ -223,14 +241,13 @@ function FlowContent() {
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest tracking-tighter">SAVED VERSIONS</span>
                   <button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button>
               </div>
-              <div className="max-h-80 overflow-y-auto p-2 space-y-1">
+              <div className="max-h-80 overflow-y-auto p-2 space-y-1 scrollbar-hide">
                   {snapshots.map(snap => (
                       <div key={snap.id} className="p-3 bg-slate-950/50 rounded-xl hover:bg-slate-800 transition-colors group cursor-pointer flex justify-between items-center" onClick={() => loadSnapshot(snap)}>
                           <div className="flex flex-col"><span className="text-xs text-white font-bold truncate max-w-[160px]">{snap.name}</span><span className="text-[9px] text-slate-500">{snap.createdAt?.toDate().toLocaleString()}</span></div>
                           <Download size={14} className="text-[#deff9a] opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                   ))}
-                  {snapshots.length === 0 && <div className="p-8 text-center text-[10px] text-slate-600">尚無存檔</div>}
               </div>
           </div>
       )}
@@ -245,12 +262,11 @@ function FlowContent() {
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
-        // 👉 核心邏輯：當停止拖曳或縮放時，同步寬、高、座標到 Firebase
         onNodeDragStop={async (_, n) => { 
             const updates: any = { position: n.position };
             if (n.type === 'group') {
-                updates.width = n.width || n.style?.width; // 抓取最新寬度
-                updates.height = n.height || n.style?.height; // 抓取最新高度
+                updates.width = n.width || n.style?.width;
+                updates.height = n.height || n.style?.height;
             }
             await updateDoc(doc(db, "flowRules", n.id), updates); 
         }} 
