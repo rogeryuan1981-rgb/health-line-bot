@@ -99,23 +99,19 @@ function FlowContent() {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
           data: { label: (
             <>
-              {/* 🚀 START 標籤 */}
               {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50">🚀 START</div>}
               
-              {/* 📝 置中文字主體 */}
               <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 mb-2">
                 {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
                 <span className="line-clamp-2 leading-snug break-words text-center">{data.nodeName || '新節點'}</span>
               </div>
 
-              {/* 🏷️ 左下角自定義標籤 (修正：貼緊邊緣) */}
               {data.customLabel && (
                 <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 max-w-[85px] truncate">
                   {data.customLabel}
                 </div>
               )}
 
-              {/* 🏷️ 右下角訊息類別 (修正：貼緊邊緣) */}
               <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm ${
                 isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'
               }`}>
@@ -269,9 +265,23 @@ function FlowContent() {
             console.error("更新連線失敗：", error);
           }
         }, [])}
-        onConnect={useCallback(async (params: Connection) => { await addDoc(collection(db, "flowEdges"), { ...params, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp() }); }, [])} 
-        onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
-        onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
+        onConnect={useCallback(async (params: Connection) => { 
+          await addDoc(collection(db, "flowEdges"), { 
+            ...params, 
+            color: '#deff9a', 
+            strokeWidth: 2, 
+            dashed: true, 
+            arrowDirection: 'forward', 
+            pathType: 'smoothstep', 
+            createdAt: serverTimestamp() 
+          }); 
+        }, [])} 
+        onNodesDelete={useCallback(async (dn: Node[]) => { 
+          for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); 
+        }, [])} 
+        onEdgesDelete={useCallback(async (de: Edge[]) => { 
+          for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); 
+        }, [])} 
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
@@ -283,7 +293,11 @@ function FlowContent() {
             }
             await updateDoc(doc(db, "flowRules", n.id), updates); 
         }} 
-        connectionMode={ConnectionMode.Loose} deleteKeyCode={["Backspace", "Delete"]} snapToGrid={snapToGrid} snapGrid={[20, 20]} fitView
+        connectionMode={ConnectionMode.Loose} 
+        deleteKeyCode={["Backspace", "Delete"]} 
+        snapToGrid={snapToGrid} 
+        snapGrid={[20, 20]} 
+        fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
@@ -304,4 +318,3 @@ export default function FlowEditor() {
     </div>
   );
 }
-```</ReactFlow>
