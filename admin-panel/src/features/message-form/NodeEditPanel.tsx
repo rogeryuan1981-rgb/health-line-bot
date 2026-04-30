@@ -41,9 +41,72 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const handleSave = async () => {
     if (!nodeId) return;
     setIsSaving(true);
+    
+    // 1. 先儲存目前的節點資料
     const payload = { ...nodeData, updatedAt: serverTimestamp() };
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
+
+    // ==========================================
+    // 🚀 新增：自動連線與防呆邏輯
+    // ==========================================
+    if (nodeData.buttons && nodeData.buttons.length > 0) {
+      try {
+        // 取得畫布上所有的節點與現有連線
+        const rulesSnap = await getDocs(collection(db, "flowRules"));
+        const edgesSnap = await getDocs(collection(db, "flowEdges"));
+        
+        const allNodes = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allEdges = edgesSnap.docs.map(d => d.data());
+
+        for (const btn of nodeData.buttons) {
+          const targetKeyword = btn.target?.trim();
+          
+          // 若沒設定目標，或目標是網址/電話，則不處理連線
+          if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
+
+          // 尋找目標關鍵字相符的節點 (排除自己)
+          const matchedNodes = allNodes.filter(n => {
+            if (n.id === nodeId) return false;
+            // 處理可能有逗號分隔的關鍵字 (向下相容)
+            const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
+            return keywords.includes(targetKeyword);
+          });
+
+          if (matchedNodes.length > 0) {
+            // ⚠️ 防呆機制：多個節點包含相同關鍵字，跳出警告
+            if (matchedNodes.length > 1) {
+              alert(`⚠️ 警告：畫布上有 ${matchedNodes.length} 個節點的關鍵字包含「${targetKeyword}」！\n系統已自動連線至第一個找到的節點，請確認是否有重複設定。`);
+            }
+
+            const targetNodeId = matchedNodes[0].id;
+
+            // 檢查是否已經有相同的連線了，避免重複畫線
+            const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId);
+
+            if (!edgeExists) {
+              // 建立新的自動連線
+              await addDoc(collection(db, "flowEdges"), {
+                source: nodeId,
+                target: targetNodeId,
+                sourceHandle: 'right',
+                targetHandle: 'left',
+                color: '#deff9a',
+                strokeWidth: 2,
+                dashed: true,
+                arrowDirection: 'forward',
+                pathType: 'smoothstep', // 圓角折線
+                createdAt: serverTimestamp()
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error("自動連線處理失敗", error);
+      }
+    }
+    // ==========================================
+
     setIsSaving(false);
     alert("✅ 配置已儲存！");
   };
@@ -173,7 +236,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex gap-4">
                   <div className="flex-[2] space-y-1.5">
-                    {/* 👉 修正 1：移除啟動關鍵字旁邊的 (i) 提示 */}
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                         啟動關鍵字
                     </label>
@@ -252,7 +314,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
                     {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
                         <div className="space-y-4">
-                            {/* 👉 修正 2：移除原本單獨的藍色大區塊操作秘訣 */}
                             <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片 (選填)</label>
@@ -267,7 +328,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             </div>
                             <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
                                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                    {/* 👉 修正 3：將操作秘訣移到這裡，變成 hover 提示 */}
                                     <div className="flex items-center gap-1">
                                         <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
                                         <div className="group relative flex items-center">
