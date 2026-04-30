@@ -56,8 +56,9 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         const rulesSnap = await getDocs(collection(db, "flowRules"));
         const edgesSnap = await getDocs(collection(db, "flowEdges"));
         
-        const allNodes = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const allEdges = edgesSnap.docs.map(d => d.data());
+        // 👉 修正 TS2339：明確加上 : any[] 讓 TypeScript 放行
+        const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allEdges: any[] = edgesSnap.docs.map(d => d.data());
 
         for (const btn of nodeData.buttons) {
           const targetKeyword = btn.target?.trim();
