@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy, ChevronDown, ChevronUp } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -24,6 +24,9 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
+  
+  // 👉 新增：控制實機預覽是否展開的狀態 (預設收起以節省空間)
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (!nodeId) return;
@@ -298,17 +301,29 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             </div>
           )}
 
+          {/* 👉 修正：將實機預覽移入捲軸區，並改為可點擊折疊的樣式 */}
+          {!isGroup && (
+            <div className="space-y-4 border-t border-white/5 pt-6 mt-4">
+                <button 
+                    onClick={() => setShowPreview(!showPreview)}
+                    className="w-full flex justify-between items-center bg-slate-800/50 hover:bg-slate-700 p-3 rounded-xl transition-colors border border-white/5"
+                >
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">實機預覽 (LINE Preview)</span>
+                    {showPreview ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
+                </button>
+
+                {showPreview && (
+                    <div className="animate-in fade-in slide-in-from-top-2">
+                        <LineSimulator data={nodeData} />
+                    </div>
+                )}
+            </div>
+          )}
+
           <button onClick={() => { if(window.confirm(`確定刪除此${isGroup ? '區塊' : '節點'}？`)) deleteDoc(doc(db, "flowRules", nodeId!)); onClose(); }} className="w-full text-red-500/50 hover:text-red-500 text-[10px] py-4 uppercase font-bold tracking-widest flex items-center justify-center gap-1 mt-4 transition-colors border-t border-white/5 pt-8">
             <Trash2 size={12}/> Delete {isGroup ? 'Group' : 'Node'}
           </button>
       </div>
-
-      {!isGroup && (
-        <div className="px-6 pb-6 bg-[#1e293b] border-t border-white/5">
-            <h4 className="text-[10px] font-bold text-slate-500 mt-6 mb-4 uppercase tracking-widest">實機預覽</h4>
-            <LineSimulator data={nodeData} />
-        </div>
-      )}
 
       <div className="p-6 border-t border-white/10 bg-slate-900 flex gap-3 z-50">
         {!isGroup && (
