@@ -256,6 +256,22 @@ function FlowContent() {
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
+        
+        {/* 👉 這裡就是新增的魔法：允許直接修改連線端點 */}
+        onEdgeUpdate={useCallback(async (oldEdge: Edge, newConnection: Connection) => {
+          try {
+            await updateDoc(doc(db, "flowEdges", oldEdge.id), {
+              source: newConnection.source,
+              target: newConnection.target,
+              sourceHandle: newConnection.sourceHandle,
+              targetHandle: newConnection.targetHandle,
+              updatedAt: serverTimestamp()
+            });
+          } catch (error) {
+            console.error("更新連線失敗：", error);
+          }
+        }, [])}
+
         onConnect={useCallback(async (params: Connection) => { await addDoc(collection(db, "flowEdges"), { ...params, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp() }); }, [])} 
         onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
         onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
