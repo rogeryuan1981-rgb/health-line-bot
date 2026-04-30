@@ -17,3 +17,5 @@ const app = initializeApp(firebaseConfig);
 
 // 匯出資料庫實例，讓其他檔案可以使用
 export const db = getFirestore(app);
+export const auth = getAuth(app); // 導出 auth
+export const googleProvider = new GoogleAuthProvider(); // 導出 Google 供應商
