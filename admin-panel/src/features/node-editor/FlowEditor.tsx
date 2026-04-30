@@ -12,23 +12,18 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect } from 'lucide-react';
 
-// --- 子組件：標準訊息節點 (優化佈局結構) ---
 const CustomNode = ({ data, isConnectable }: any) => (
   <div className="w-full h-full relative">
-    {/* 4個連接點 */}
     <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
     <Handle type="target" position={Position.Left} id="left" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
-    
-    {/* 核心內容層：確保內容與標籤互不干擾 */}
     <div className="w-full h-full flex items-center justify-center pointer-events-none">
       {data.label}
     </div>
   </div>
 );
 
-// --- 子組件：群組區塊節點 ---
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
     <NodeResizer 
@@ -54,13 +49,11 @@ function FlowContent() {
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapToGrid, setSnapToGrid] = useState(true);
-  
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
   const { getViewport } = useReactFlow();
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -78,7 +71,6 @@ function FlowContent() {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
         const data = d.data();
-        
         if (data.messageType === 'group_box') {
           return {
             id: d.id,
@@ -93,31 +85,23 @@ function FlowContent() {
             zIndex: -1,
           };
         }
-
         const isStart = data.nodeName === '預設回覆'; 
         return {
-          id: d.id, 
-          type: 'custom', 
-          position: data.position || { x: 100, y: 100 },
+          id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
           parentNode: data.parentNode || undefined,
           data: { label: (
             <>
               {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50">🚀 START</div>}
-              
               <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 mb-2">
                 {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
                 <span className="line-clamp-2 leading-snug break-words text-center">{data.nodeName || '新節點'}</span>
               </div>
-
               {data.customLabel && (
                 <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 max-w-[85px] truncate">
                   {data.customLabel}
                 </div>
               )}
-
-              <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm ${
-                isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'
-              }`}>
+              <div className={`absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>
                 {data.messageType}
               </div>
             </>
@@ -160,13 +144,7 @@ function FlowContent() {
     const centerX = (window.innerWidth / 2 - x) / zoom;
     const centerY = (window.innerHeight / 2 - y) / zoom;
     await addDoc(collection(db, "flowRules"), { 
-        nodeName: "新區塊", 
-        messageType: "group_box", 
-        customLabel: "規劃中", 
-        width: 400, 
-        height: 300, 
-        position: { x: centerX - 200, y: centerY - 150 }, 
-        updatedAt: serverTimestamp() 
+        nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: centerX - 200, y: centerY - 150 }, updatedAt: serverTimestamp() 
     });
   };
 
@@ -258,81 +236,44 @@ function FlowContent() {
         onEdgeUpdate={useCallback(async (oldEdge: Edge, newConnection: Connection) => {
           try {
             await updateDoc(doc(db, "flowEdges", oldEdge.id), {
-              source: newConnection.source,
-              target: newConnection.target,
-              sourceHandle: newConnection.sourceHandle,
-              targetHandle: newConnection.targetHandle,
-              updatedAt: serverTimestamp()
+              source: newConnection.source, target: newConnection.target, sourceHandle: newConnection.sourceHandle, targetHandle: newConnection.targetHandle, updatedAt: serverTimestamp()
             });
-          } catch (error) {
-            console.error("更新連線失敗：", error);
-          }
+          } catch (e) { console.error(e); }
         }, [])}
-        onConnect={useCallback(async (params: Connection) => { 
-          await addDoc(collection(db, "flowEdges"), { 
-            ...params, 
-            color: '#deff9a', 
-            strokeWidth: 2, 
-            dashed: true, 
-            arrowDirection: 'forward', 
-            pathType: 'smoothstep', 
-            createdAt: serverTimestamp() 
-          }); 
+        onConnect={useCallback(async (p: Connection) => { 
+          await addDoc(collection(db, "flowEdges"), { ...p, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp() }); 
         }, [])} 
-        onNodesDelete={useCallback(async (dn: Node[]) => { 
-          for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); 
-        }, [])} 
-        onEdgesDelete={useCallback(async (de: Edge[]) => { 
-          for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); 
-        }, [])} 
+        onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
+        onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
         onNodeDragStop={async (_, n) => { 
             if (n.type === 'group') {
-                const updates: any = { position: n.position };
-                updates.width = n.width || n.style?.width;
-                updates.height = n.height || n.style?.height;
-                await updateDoc(doc(db, "flowRules", n.id), updates); 
+                const up: any = { position: n.position };
+                up.width = n.width || n.style?.width;
+                up.height = n.height || n.style?.height;
+                await updateDoc(doc(db, "flowRules", n.id), up); 
             } else {
                 const absX = n.positionAbsolute?.x || n.position.x;
                 const absY = n.positionAbsolute?.y || n.position.y;
-                
                 const centerX = absX + 100;
                 const centerY = absY + 40;
-
                 const targetGroup = nodes.find(g => {
                     if (g.type !== 'group') return false;
-                    const gX = g.position.x;
-                    const gY = g.position.y;
+                    const gX = g.position.x; const gY = g.position.y;
                     const gW = parseInt(g.style?.width as string) || 400;
                     const gH = parseInt(g.style?.height as string) || 300;
                     return centerX >= gX && centerX <= gX + gW && centerY >= gY && centerY <= gY + gH;
                 });
-
                 if (targetGroup) {
-                    const relativeX = absX - targetGroup.position.x;
-                    const relativeY = absY - targetGroup.position.y;
-                    
-                    await updateDoc(doc(db, "flowRules", n.id), {
-                        parentNode: targetGroup.id,
-                        position: { x: relativeX, y: relativeY },
-                        updatedAt: serverTimestamp()
-                    });
+                    await updateDoc(doc(db, "flowRules", n.id), { parentNode: targetGroup.id, position: { x: absX - targetGroup.position.x, y: absY - targetGroup.position.y }, updatedAt: serverTimestamp() });
                 } else {
-                    await updateDoc(doc(db, "flowRules", n.id), {
-                        parentNode: deleteField(),
-                        position: { x: absX, y: absY },
-                        updatedAt: serverTimestamp()
-                    });
+                    await updateDoc(doc(db, "flowRules", n.id), { parentNode: deleteField(), position: { x: absX, y: absY }, updatedAt: serverTimestamp() });
                 }
             }
         }} 
-        connectionMode={ConnectionMode.Loose} 
-        deleteKeyCode={["Backspace", "Delete"]} 
-        snapToGrid={snapToGrid} 
-        snapGrid={[20, 20]} 
-        fitView
+        connectionMode={ConnectionMode.Loose} deleteKeyCode={["Backspace", "Delete"]} snapToGrid={snapToGrid} snapGrid={[20, 20]} fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
@@ -353,4 +294,3 @@ export default function FlowEditor() {
     </div>
   );
 }
-```</ReactFlow>
