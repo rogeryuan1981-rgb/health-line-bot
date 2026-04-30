@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import LineSimulator from '../simulator/LineSimulator' // 👉 確保這行被讀取
+import LineSimulator from '../simulator/LineSimulator'
 
 const EMOJI_LIST = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
@@ -173,14 +173,18 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                   <div className="flex-[2] space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                         啟動關鍵字
+                        {/* 👉 核心修正：更新 Tooltip 說明多重匹配 */}
                         <div className="group relative flex items-center">
                             <Info size={10} className="text-slate-400 cursor-help hover:text-[#deff9a] transition-colors"/>
-                            <div className="absolute left-4 top-0 w-48 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case">
-                                使用者輸入此字將觸發。若名為 <span className="text-[#deff9a] font-bold">預設回覆</span> 則為保底。
+                            <div className="absolute left-4 top-0 w-64 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case leading-relaxed">
+                                <span className="text-[#deff9a] font-bold">進階匹配規則：</span><br/>
+                                • <span className="text-white">多重關鍵字：</span>請使用英文逗號 <code className="bg-black px-1 text-yellow-400">,</code> 分隔。<br/>
+                                  例如：<code className="bg-black px-1 text-yellow-400">謝謝,感謝,謝啦</code><br/>
+                                • <span className="text-[#deff9a] font-bold">預設回覆：</span>當所有規則皆未命中時的保底節點。
                             </div>
                         </div>
                     </label>
-                    <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 產品報價" />
+                    <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 謝謝,感謝,謝啦" />
                   </div>
                   <div className="flex-1 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Tag size={10}/> 自定義標籤</label>
@@ -205,7 +209,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                     {nodeData.messageType === 'text' && (
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase">回覆內容文字</label>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">回覆文字</label>
                                 <button onClick={() => setShowEmoji(!showEmoji)} className={`text-[10px] px-2 py-1 rounded transition-colors ${showEmoji ? 'bg-[#deff9a] text-black font-bold' : 'text-[#deff9a] bg-slate-800'}`}><Smile size={12}/> 符號</button>
                             </div>
                             {showEmoji && (
@@ -232,6 +236,10 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             <div className="space-y-2">
                               <label className="text-[10px] font-bold text-slate-500 uppercase">影片連結 (HTTPS)</label>
                               <input value={nodeData.videoUrl || ""} onChange={e => setNodeData({...nodeData, videoUrl: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none" placeholder="影片網址 (https://)..." />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase">下方說明文字 (選填)</label>
+                              <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-3 text-xs outline-none min-h-[60px]" placeholder="影片下方的描述..." />
                             </div>
                         </div>
                     )}
@@ -295,7 +303,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
           </button>
       </div>
 
-      {/* 👉 補回被讀取的實機預覽區塊 */}
       {!isGroup && (
         <div className="px-6 pb-6 bg-[#1e293b] border-t border-white/5">
             <h4 className="text-[10px] font-bold text-slate-500 mt-6 mb-4 uppercase tracking-widest">實機預覽</h4>
