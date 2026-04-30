@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { auth, googleProvider } from '../../firebase';
+import { auth, googleProvider } from '../firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { LogIn, LogOut, ShieldCheck, AlertTriangle } from 'lucide-react';
 
