@@ -1,6 +1,7 @@
 // admin-panel/src/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 // 請把這段替換成您專屬的 Firebase Config
 const firebaseConfig = {
