@@ -25,7 +25,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const [searchTerm, setSearchTerm] = useState('');
   const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
   
-  // 👉 新增：控制實機預覽是否展開的狀態 (預設收起以節省空間)
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
@@ -174,20 +173,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex gap-4">
                   <div className="flex-[2] space-y-1.5">
+                    {/* 👉 修正 1：移除啟動關鍵字旁邊的 (i) 提示 */}
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                         啟動關鍵字
-                        <div className="group relative flex items-center">
-                            <Info size={10} className="text-slate-400 cursor-help hover:text-[#deff9a] transition-colors"/>
-                            <div className="absolute left-4 top-0 w-64 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case leading-relaxed">
-                                <span className="text-[#deff9a] font-bold">多重匹配規則：</span><br/>
-                                • 使用逗號 <code className="bg-black px-1 text-yellow-400">,</code> 分隔多個關鍵字。<br/>
-                                  例如：<code className="bg-black px-1 text-yellow-400">謝謝,感謝,謝啦,感恩</code><br/>
-                                • 只要用戶輸入其中一個詞，即會觸發回覆。<br/>
-                                • <span className="text-[#deff9a] font-bold">預設回覆：</span>此名稱為全域保底節點。
-                            </div>
-                        </div>
                     </label>
-                    <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 謝謝,感謝,謝啦" />
+                    <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 預設回覆" />
                   </div>
                   <div className="flex-1 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Tag size={10}/> 自定義標籤</label>
@@ -262,14 +252,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
                     {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
                         <div className="space-y-4">
-                             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 flex items-start gap-1.5 relative group">
-                                <Info size={12} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                                <div className="text-[9.5px] text-blue-300 leading-relaxed">
-                                    <span className="font-bold block">操作秘訣：</span>
-                                    • <code className="text-[#deff9a]">tel:號碼</code> 撥電話<br/>
-                                    • <code className="text-[#deff9a]">https://...</code> 開網頁 <span className="text-red-400 font-bold">(限 https)</span>
-                                </div>
-                            </div>
+                            {/* 👉 修正 2：移除原本單獨的藍色大區塊操作秘訣 */}
                             <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片 (選填)</label>
@@ -284,7 +267,18 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             </div>
                             <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
                                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                    <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
+                                    {/* 👉 修正 3：將操作秘訣移到這裡，變成 hover 提示 */}
+                                    <div className="flex items-center gap-1">
+                                        <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
+                                        <div className="group relative flex items-center">
+                                            <Info size={10} className="text-slate-400 cursor-help hover:text-blue-400 transition-colors"/>
+                                            <div className="absolute bottom-full left-0 mb-2 w-52 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case leading-relaxed">
+                                                <span className="text-blue-400 font-bold block mb-1">操作秘訣：</span>
+                                                • <code className="text-[#deff9a]">tel:號碼</code> 撥電話<br/>
+                                                • <code className="text-[#deff9a]">https://...</code> 開網頁 <span className="text-red-400 font-bold">(限 https)</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] hover:bg-slate-700 p-1 rounded transition-colors"><Plus size={14}/></button>
                                 </div>
                                 {nodeData.buttons?.map((btn: any, i: number) => (
@@ -301,7 +295,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             </div>
           )}
 
-          {/* 👉 修正：將實機預覽移入捲軸區，並改為可點擊折疊的樣式 */}
           {!isGroup && (
             <div className="space-y-4 border-t border-white/5 pt-6 mt-4">
                 <button 
