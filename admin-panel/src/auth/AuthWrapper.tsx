@@ -5,7 +5,7 @@ import { LogIn, LogOut, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react
 
 // 🔒 管理員白名單 (請務必確認這裡的 Email 與您登入的一模一樣)
 const ADMIN_WHITELIST = [
-  '您的Email@gmail.com', 
+  'rogeryuan1981@gmail.com', 
 ];
 
 export default function AuthWrapper({ children }: { children: React.ReactNode }) {
