@@ -99,7 +99,6 @@ function FlowContent() {
           id: d.id, 
           type: 'custom', 
           position: data.position || { x: 100, y: 100 },
-          // 👉 新增：讀取 Firebase 中的 parentNode，讓節點真正掛載在群組下
           parentNode: data.parentNode || undefined,
           data: { label: (
             <>
@@ -289,26 +288,19 @@ function FlowContent() {
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} 
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} 
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
-        
-        {/* 👉 這裡加入了群組偵測魔法與座標轉換邏輯 */}
         onNodeDragStop={async (_, n) => { 
             if (n.type === 'group') {
-                // 如果移動的是群組本身，只更新它的位置與大小
                 const updates: any = { position: n.position };
                 updates.width = n.width || n.style?.width;
                 updates.height = n.height || n.style?.height;
                 await updateDoc(doc(db, "flowRules", n.id), updates); 
             } else {
-                // 如果移動的是一般節點，需要偵測它是不是被丟進了群組裡
-                // 取得這個節點在「大畫布」上的絕對座標 (如果有的話)
                 const absX = n.positionAbsolute?.x || n.position.x;
                 const absY = n.positionAbsolute?.y || n.position.y;
                 
-                // 計算節點的中心點 (寬抓200, 高抓80)
                 const centerX = absX + 100;
                 const centerY = absY + 40;
 
-                // 去找看看中心點有沒有落在任何一個群組區塊內
                 const targetGroup = nodes.find(g => {
                     if (g.type !== 'group') return false;
                     const gX = g.position.x;
@@ -319,8 +311,6 @@ function FlowContent() {
                 });
 
                 if (targetGroup) {
-                    // 🎯 命中！把這個節點綁定為該群組的子節點
-                    // 轉換成相對座標 = 絕對座標 - 群組的左上角座標
                     const relativeX = absX - targetGroup.position.x;
                     const relativeY = absY - targetGroup.position.y;
                     
@@ -330,10 +320,9 @@ function FlowContent() {
                         updatedAt: serverTimestamp()
                     });
                 } else {
-                    // 🚀 沒命中任何群組！(或被拖出群組外) -> 解除綁定
                     await updateDoc(doc(db, "flowRules", n.id), {
-                        parentNode: deleteField(), // Firebase 指令：刪除這個欄位
-                        position: { x: absX, y: absY }, // 還原成絕對座標
+                        parentNode: deleteField(),
+                        position: { x: absX, y: absY },
                         updatedAt: serverTimestamp()
                     });
                 }
@@ -364,3 +353,4 @@ export default function FlowEditor() {
     </div>
   );
 }
+```</ReactFlow>
