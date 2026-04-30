@@ -1,22 +1,41 @@
 import { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../../firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, AlertTriangle } from 'lucide-react';
+
+// 🔒 管理員白名單 (請在此輸入您的 Email)
+const ADMIN_WHITELIST = [
+  'roger.yourname@gmail.com', // 請改成您的真實 Email
+];
 
 export default function AuthWrapper({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 監聽登入狀態切換
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser && currentUser.email) {
+        // 檢查登入者的 Email 是否在白名單內
+        if (ADMIN_WHITELIST.includes(currentUser.email)) {
+          setUser(currentUser);
+          setAuthError(null);
+        } else {
+          // ❌ 不在白名單，強制登出並報錯
+          signOut(auth);
+          setUser(null);
+          setAuthError("您的帳號不在管理員白名單內，存取被拒絕。");
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   const handleLogin = async () => {
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
@@ -39,9 +58,16 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           <div className="bg-[#deff9a]/10 p-4 rounded-full inline-block mb-4 border border-[#deff9a]/20">
             <ShieldCheck size={48} className="text-[#deff9a]" />
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tighter italic">ADMIN PANEL ACCESS</h1>
-          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">請先驗證管理員身份</p>
+          <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase">Security Gate</h1>
+          <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">請驗證管理員身份以存取畫布</p>
         </div>
+
+        {authError && (
+          <div className="bg-red-500/10 border border-red-500/50 px-6 py-4 rounded-2xl flex items-center gap-3 text-red-500 text-sm font-bold animate-in shake-in">
+            <AlertTriangle size={18} />
+            {authError}
+          </div>
+        )}
         
         <button 
           onClick={handleLogin}
@@ -53,18 +79,17 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     );
   }
 
-  // 登入後顯示內容，並在右上角加一個登出按鈕
+  // ✅ 驗證通過
   return (
     <>
-      <div className="fixed top-8 right-8 z-[200] flex items-center gap-4 bg-slate-900/80 backdrop-blur-md p-2 pl-4 rounded-2xl border border-white/10 shadow-2xl">
+      <div className="fixed top-8 right-8 z-[200] flex items-center gap-4 bg-slate-900/80 backdrop-blur-md p-2 pl-4 rounded-2xl border border-white/10 shadow-2xl group transition-all hover:bg-slate-900">
         <div className="flex flex-col items-end">
-          <span className="text-[10px] font-black text-[#deff9a] uppercase tracking-tighter">Authorized User</span>
+          <span className="text-[10px] font-black text-[#deff9a] uppercase tracking-tighter">Admin Verified</span>
           <span className="text-[12px] font-bold text-white leading-tight">{user.displayName}</span>
         </div>
         <button 
           onClick={handleLogout}
           className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white p-3 rounded-xl transition-all"
-          title="登出系統"
         >
           <LogOut size={18} />
         </button>
