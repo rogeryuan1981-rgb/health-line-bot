@@ -1,24 +1,27 @@
-import { onRequest } from "firebase-functions/v2/https"; // 👉 使用 v2 的導入方式
+import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import axios from "axios";
 
-// 初始化 Firebase Admin
+// 1. 初始化 Firebase Admin
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
 /**
- * LINE Webhook 核心處理函式 (v2)
+ * LINE Webhook 核心處理函式 (維持原名 webhook)
  * 設定部署區域為 asia-east1 (台灣)
  */
-export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) => {
-  // 1. 安全讀取環境變數 (v2 依然支援從 config 讀取，但建議確保已設定)
-  // 若使用 v2 secrets 也可以，此處維持 config 寫法以兼容你之前的設定
+export const webhook = onRequest({ 
+  region: "asia-east1",
+  maxInstances: 10 
+}, async (req, res) => {
+  
+  // 2. 讀取環境變數 (確保你已設定 LINE_ACCESS_TOKEN)
   const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN || ""; 
 
   const events = req.body.events;
 
-  // 基本檢查
+  // 基本檢查：若無事件則回傳 200 並結束
   if (!events || events.length === 0) {
     res.status(200).send("OK");
     return;
@@ -27,7 +30,7 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
   const db = admin.firestore();
 
   for (const event of events) {
-    // 僅處理「文字訊息」
+    // 僅處理「文字訊息」且具備回覆權杖
     if (event.type !== "message" || event.message.type !== "text" || !event.replyToken) continue;
 
     const userText = event.message.text.trim();
@@ -35,35 +38,37 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
     let targetRule: any = null;
 
     try {
-      // 2. 抓取流程規則
+      // 3. 抓取所有流程規則 (flowRules)
       const rulesSnap = await db.collection("flowRules").get();
       const allRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 3. 多關鍵字比對 (修正逗號與空白問題)
+      // 4. 🚀 多關鍵字匹配邏輯 (不含萬用字元，支援逗號拆分)
       targetRule = allRules.find((rule: any) => {
         const nodeName = rule.nodeName || "";
-        const keywords = nodeName.split(/,|，/).map((k: string) => k.trim()).filter(Boolean);
+        // 支援中英文逗號，並清理每個詞的前後空白與換行
+        const keywords = nodeName.split(/[,，\n]/).map((k: string) => k.trim()).filter(Boolean);
         return keywords.includes(userText);
       });
 
-      // 4. 保底邏輯：預設回覆
+      // 5. 若未命中，則尋找「預設回覆」
       if (!targetRule) {
         targetRule = allRules.find((rule: any) => rule.nodeName === "預設回覆");
       }
 
-      // 5. 封裝訊息
-      if (targetRule) {
+      // 6. 封裝並發送回覆
+      if (targetRule && replyToken) {
         let messages: any[] = [];
 
         switch (targetRule.messageType) {
           case 'text':
             messages = [{
               type: 'text',
-              text: targetRule.textContent || "收到，請稍候。"
+              text: targetRule.textContent || "收到訊息，請稍候。"
             }];
             break;
 
           case 'image':
+            // 支援 1~5 張多圖連發
             const images = (targetRule.imageUrls && targetRule.imageUrls.length > 0)
               ? targetRule.imageUrls
               : [targetRule.imageUrl];
@@ -86,7 +91,7 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
           case 'file':
             messages = [{
               type: 'file',
-              fileName: targetRule.textContent || "下載檔案",
+              fileName: targetRule.textContent || "檔案下載",
               fileUrl: targetRule.fileUrl
             }];
             break;
@@ -95,16 +100,16 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
           case 'carousel':
             messages = [{
               type: 'flex',
-              altText: '您有新訊息',
+              altText: '您有一則新訊息',
               contents: targetRule.flexData || {} 
             }];
             break;
 
           default:
-            messages = [{ type: 'text', text: "訊息已收到" }];
+            messages = [{ type: 'text', text: "已收到您的訊息。" }];
         }
 
-        // 6. 發送 API 請求
+        // 7. 透過 Axios 呼叫 LINE API
         if (messages.length > 0) {
           await axios.post(
             "https://api.line.me/v2/bot/message/reply",
@@ -115,11 +120,11 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
             {
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${LINE_ACCESS_TOKEN}`, // 👉 這裡請確保 Token 正確
+                Authorization: `Bearer ${LINE_ACCESS_TOKEN}`,
               },
             }
           );
-          console.log(`✅ 成功比對並回覆: [${userText}]`);
+          console.log(`✅ 成功比對關鍵字 [${userText}] -> 觸發節點: ${targetRule.nodeName}`);
         }
       }
 
@@ -128,5 +133,6 @@ export const lineWebhook = onRequest({ region: "asia-east1" }, async (req, res) 
     }
   }
 
+  // 必須回傳 200 給 LINE，否則會重複發送
   res.status(200).send("OK");
 });
