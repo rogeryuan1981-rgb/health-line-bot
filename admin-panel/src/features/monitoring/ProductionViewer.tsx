@@ -34,7 +34,7 @@ const CustomNodeProd = ({ data }: any) => {
     <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 text-white ${getBg()} ${isStart ? 'node-prod-glow' : ''}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
       <div className="flex flex-col items-center mb-4 relative text-center">
-        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase">🚀 START</div>}
+        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
@@ -96,16 +96,12 @@ function ProductionCanvas() {
           const base: any = {
             id: n.id,
             position: n.position,
-            type: n.type, // 直接複用編輯器存入的 type
+            type: n.type,
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
           if (n.type === 'group') {
-            base.style = { 
-                width: Number(n.width) || 400, 
-                height: Number(n.height) || 300, 
-                borderRadius: '32px' 
-            };
+            base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, borderRadius: '32px' };
           }
           return base;
         });
