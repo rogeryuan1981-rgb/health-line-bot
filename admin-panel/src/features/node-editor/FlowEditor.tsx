@@ -15,11 +15,9 @@ const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } }
     .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
-    .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
   `}} />
 );
 
-// 🚀 核心修正 1：還原 /80 透明度，讓節點疊在群組上能透出正確的深淺層次
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -122,24 +120,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
-        // 🚀 核心修正 2：不再寫死，完整套用您 EdgeEditPanel 的資料欄位
         return { 
-            id: d.id, 
-            source: data.source, 
-            target: data.target, 
-            sourceHandle: data.sourceHandle, 
-            targetHandle: data.targetHandle, 
-            type: data.pathType || 'smoothstep', // 套用科技折線/曲線
-            animated: data.dashed !== false,     // 套用虛線/實線
-            style: { 
-                stroke: data.color || '#deff9a', 
-                strokeWidth: data.strokeWidth ? Number(data.strokeWidth) : 2, 
-                strokeDasharray: data.dashed ? '5 5' : 'none'
-            }, 
-            markerEnd: data.arrowDirection === 'none' ? undefined : { 
-                type: MarkerType.ArrowClosed, 
-                color: data.color || '#deff9a' 
-            } 
+            id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, 
+            type: data.pathType || 'smoothstep', animated: data.dashed !== false,
+            style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }, 
+            markerEnd: data.arrowDirection === 'none' ? undefined : (data.arrowDirection === 'backward' ? undefined : { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' }),
+            markerStart: (data.arrowDirection === 'backward' || data.arrowDirection === 'dual') ? { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } : undefined
         };
       }));
     });
@@ -160,6 +146,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
+  // 🚀 關鍵發布修正：顯式過濾 undefined 並保留所有箭頭與風格屬性
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要發布到正式機嗎？")) return;
     setIsPublishing(true);
@@ -174,49 +161,27 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           data: cleanData,
           width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
           height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-          parentNode: null // 打平層級
+          parentNode: null
         };
       });
 
-      // 🚀 核心修正 3：發布時將編輯器上的 style 與 markerEnd 完整帶過去
       const edgesToPublish = flowObject.edges.map(e => ({
         id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
         targetHandle: e.targetHandle ? String(e.targetHandle) : null,
         type: String(e.type || 'smoothstep'),
         animated: Boolean(e.animated),
-        style: e.style || {},
-        markerEnd: e.markerEnd || null
+        style: JSON.parse(JSON.stringify(e.style || {})),
+        markerEnd: JSON.parse(JSON.stringify(e.markerEnd || null)),
+        markerStart: JSON.parse(JSON.stringify(e.markerStart || null))
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
         publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！正式機會呈現 1:1 畫面。");
+      alert("🚀 1:1 發布成功！連線風格與箭頭已同步。");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
-  };
-
-  const handleOpenSaveModal = () => {
-    setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`);
-    setShowSaveModal(true);
-  };
-
-  const executeSaveDraft = async () => {
-    if (!saveName.trim()) return;
-    setIsSavingDraft(true);
-    try {
-      const nodeS = await getDocs(collection(db, "flowRules"));
-      const edgeS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "flowSnapshots"), { 
-          name: saveName.trim(), 
-          nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), 
-          edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), 
-          createdAt: serverTimestamp() 
-      });
-      setShowSaveModal(false);
-      alert("✅ 草稿儲存成功");
-    } catch (e) { alert("儲存失敗"); } finally { setIsSavingDraft(false); }
   };
 
   return (
@@ -229,7 +194,16 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             <input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="w-full bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-[#deff9a]" autoFocus />
             <div className="flex gap-3">
               <button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-800 rounded-xl text-xs font-bold text-slate-300">取消</button>
-              <button onClick={executeSaveDraft} disabled={isSavingDraft} className="flex-1 py-3 bg-[#deff9a] text-black font-black rounded-xl text-xs">{isSavingDraft ? "處理中" : "儲存"}</button>
+              <button onClick={async () => {
+                if (!saveName.trim()) return;
+                setIsSavingDraft(true);
+                try {
+                    const nS = await getDocs(collection(db, "flowRules"));
+                    const eS = await getDocs(collection(db, "flowEdges"));
+                    await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nS.docs.map(d => ({ id: d.id, ...d.data() })), edges: eS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
+                    setShowSaveModal(false); alert("✅ 儲存成功");
+                } catch (e) { alert("失敗"); } finally { setIsSavingDraft(false); }
+              }} disabled={isSavingDraft} className="flex-1 py-3 bg-[#deff9a] text-black font-black rounded-xl text-xs">{isSavingDraft ? "處理中" : "儲存"}</button>
             </div>
           </div>
         </div>
@@ -242,7 +216,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-1" />
-          <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
+          <button onClick={() => { setSaveName(`版本_${new Date().toISOString().slice(0, 10)}`); setShowSaveModal(true); }} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
 
