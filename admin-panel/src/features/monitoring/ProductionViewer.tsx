@@ -18,13 +18,14 @@ const CustomStyles = () => (
   `}} />
 );
 
+// 🚀 真正 100% 還原：把 /80 透明度全部加回來！
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
@@ -46,11 +47,11 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 !right-[-10px]" />}
     </div>
   );
 };
@@ -67,6 +68,7 @@ const GroupNodeProd = ({ data }: any) => {
   );
 };
 
+// 🚀 真正 100% 還原：把 bg-indigo-950/90 加回來！
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
@@ -97,10 +99,10 @@ function ProductionCanvas() {
             position: n.position,
             type: n.type,
             data: n.data || {},
-            style: n.style || {} // 保證 style 是一個物件
+            style: n.style || {} 
           };
           
-          // 🚀 核心修復：手動把資料庫存的 width / height 轉回 CSS style
+          // 🚀 保留群組尺寸修復
           if (n.type === 'group') {
             base.style.width = Number(n.width) || Number(base.style.width) || 400;
             base.style.height = Number(n.height) || Number(base.style.height) || 300;
@@ -111,7 +113,6 @@ function ProductionCanvas() {
         
         setNodes(safeNodes);
         
-        // 過濾毒瘤 null
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
             const cleanEdge = { ...e };
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
