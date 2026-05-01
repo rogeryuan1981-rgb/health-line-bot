@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
-  NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
+  NodeResizer, useReactFlow, Position, Handle, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet, Rocket, Clock, Globe } from 'lucide-react';
+import { Plus, Flag, Globe, Rocket } from 'lucide-react';
 
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -64,7 +64,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const reactFlowInstance = useReactFlow(); 
-  const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -72,7 +71,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100';
       case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100';
       case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100';
-      default: return 'bg-blue-900/80 border-blue-500 text-blue-100';
+      default: return 'bg-blue-950/90 border-blue-500 text-blue-100';
     }
   };
 
@@ -140,7 +139,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         publishedAt: serverTimestamp(),
         publisher: "Roger"
       });
-      alert("✅ 發布成功");
+      alert("✅ 1:1 發布成功");
     } catch (e: any) { alert(e.message); } finally { setIsPublishing(false); }
   };
 
@@ -155,7 +154,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       </div>
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
-        defaultViewport={initialViewport.current}
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
         onConnect={onConnect}
@@ -166,17 +164,16 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
-        <Magnet className="hidden" /> {/* 僅為了保留變數引用通過編譯 */}
       </ReactFlow>
 
       {activePanel === 'node' && (
         <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl">
-          <NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} />
+          <NodeEditPanel nodeId={selectedId || ""} onClose={() => setActivePanel(null)} />
         </div>
       )}
       {activePanel === 'edge' && (
         <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl">
-          <EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} />
+          <EdgeEditPanel edgeId={selectedId || ""} onClose={() => setActivePanel(null)} />
         </div>
       )}
     </>
