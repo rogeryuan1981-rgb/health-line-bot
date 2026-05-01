@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -12,7 +12,6 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// --- 子組件：標準訊息節點 (左進右出 + 動態高度) ---
 const CustomNode = ({ data, isConnectable }: any) => {
   const options = data.options || [];
   const isStart = data.nodeName === '預設回覆';
@@ -23,11 +22,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
       
       <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
-        {data.globalKeyword && (
-           <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900" title={`全域關鍵字: ${data.globalKeyword}`}>
-             <Globe size={12} />
-           </div>
-        )}
+        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900" title={`全域關鍵字`}><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
@@ -41,44 +36,28 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={opt.id || index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id={`opt_${index}`}
-              isConnectable={isConnectable} 
-              className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" 
-            />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
         ))}
       </div>
-
-      {options.length === 0 && (
-         <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
-      )}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />}
     </div>
   );
 };
 
-// --- 子組件：群組區塊節點 ---
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
     <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} handleClassName="w-3 h-3 bg-white border-2 border-[#deff9a] rounded-full" />
     <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-        {data.title || '未命名區塊'}
-      </div>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '未命名區塊'}</div>
     </div>
   </>
 );
 
-// --- 子組件：時間分流節點 (左進右出) ---
 const TimeRouterNode = ({ data, isConnectable }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative transition-all duration-300">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1">
-      <Clock size={16} className="text-indigo-400" />
-      <span>{data.nodeName || '時間條件分流'}</span>
-    </div>
+    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName || '時間條件分流'}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
       {data.config?.forceOffHours ? <span className="text-rose-400">🚨 強制下班模式 (開啟)</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
     </div>
@@ -91,7 +70,8 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
 
 const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
 
-function FlowContent() {
+// 🚀 接收 activeSimulatorNodeId Props
+function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string | null }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
@@ -104,20 +84,18 @@ function FlowContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   
-  // 🚀 排程發布的狀態管理
   const [pendingSchedule, setPendingSchedule] = useState<any>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const { getViewport } = useReactFlow();
+  const { getViewport, setCenter } = useReactFlow(); // 🚀 引入 setCenter 運鏡魔法
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
     switch(type) {
-      case 'carousel':
-      case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
       case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
       case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
       default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
@@ -138,10 +116,8 @@ function FlowContent() {
         if (data.messageType === 'time_router') {
           return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
-        
         return {
-          id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
-          parentNode: data.parentNode || undefined,
+          id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined,
           data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
           className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`
         };
@@ -156,27 +132,39 @@ function FlowContent() {
         if (data.sourceHandle === 'off-hours') edgeColor = '#fb7185';
         if (data.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
 
-        const markerConfig = { type: MarkerType.ArrowClosed, color: edgeColor };
         return { 
           id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: data.pathType || 'smoothstep', animated: data.dashed !== false, 
           style: { stroke: edgeColor, strokeWidth: data.strokeWidth || 2, strokeDasharray: data.dashed ? '5 5' : '' },
-          markerEnd: markerConfig
+          markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor }
         };
       }));
     });
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
-    // 🚀 監聽是否有等待中的排程發布任務
     const unsubSchedule = onSnapshot(query(collection(db, "scheduled_releases"), where("status", "==", "pending")), (snap) => {
-      if (!snap.empty) {
-        setPendingSchedule({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      } else {
-        setPendingSchedule(null);
-      }
+      if (!snap.empty) setPendingSchedule({ id: snap.docs[0].id, ...snap.docs[0].data() }); else setPendingSchedule(null);
     });
 
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
+
+  // 🚀 核心亮點：當接收到模擬器的觸發，幫節點加上粉紅脈衝光，並自動運鏡！
+  useEffect(() => {
+    if (activeSimulatorNodeId) {
+        setNodes(nds => nds.map(n => {
+            const baseClass = (n.className || '').replace(/ring-4 ring-rose-500 shadow-\[0_0_40px_rgba\(244,63,94,0\.8\)\] animate-pulse/g, '');
+            if (n.id === activeSimulatorNodeId) {
+                return { ...n, className: `${baseClass} ring-4 ring-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.8)] animate-pulse`.trim() };
+            }
+            return { ...n, className: baseClass.trim() };
+        }));
+
+        // 自動對焦該節點
+        const activeNode = nodes.find(n => n.id === activeSimulatorNodeId);
+        if (activeNode) {
+            setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.2, duration: 800 });
+        }
+    }
+  }, [activeSimulatorNodeId, setCenter]); // 注意：不能把 nodes 放入 dependency 否則會無限迴圈
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
   const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
@@ -187,105 +175,50 @@ function FlowContent() {
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
 
-  // 🚀 執行排程發布 (打包成時空膠囊存入 scheduled_releases)
   const executeSchedulePublish = async () => {
     if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; }
     const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`);
     if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; }
-
     setIsScheduling(true);
     try {
-      const nodeS = await getDocs(collection(db, "flowRules"));
-      const edgeS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "scheduled_releases"), {
-        triggerTime: triggerDateTime,
-        status: 'pending',
-        snapshot: {
-          nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })),
-          edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() }))
-        },
-        createdAt: serverTimestamp()
-      });
-      setShowScheduleModal(false);
-      alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`);
-    } catch (e) {
-      console.error(e); alert("排程失敗，請重試");
-    } finally {
-      setIsScheduling(false);
-    }
+      const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges"));
+      await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() });
+      setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`);
+    } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); }
   };
 
-  // 🚀 取消目前的排程
   const cancelSchedule = async () => {
     if (!pendingSchedule) return;
     if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return;
-    try {
-      await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() });
-      alert("✅ 已成功取消排程");
-    } catch(e) { alert("取消失敗"); }
+    try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); }
   };
 
   const executePublish = async () => {
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return;
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return;
-    
     setIsPublishing(true);
     try {
-      const nodeS = await getDocs(collection(db, "flowRules"));
-      const edgeS = await getDocs(collection(db, "flowEdges"));
-      const payload = {
-        nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })),
-        edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })),
-        publishedAt: serverTimestamp()
-      };
-      await setDoc(doc(db, "botConfig", "production"), payload);
+      const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges"));
+      await setDoc(doc(db, "botConfig", "production"), { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), publishedAt: serverTimestamp() });
       alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！");
-    } catch (e) {
-      console.error(e); alert("發布失敗，請重試");
-    } finally {
-      setIsPublishing(false);
-    }
+    } catch (e) { alert("發布失敗，請重試"); } finally { setIsPublishing(false); }
   };
 
   return (
     <>
-      {/* 🚀 排程狀態橫幅 Banner */}
       {pendingSchedule && (
         <div className="absolute top-0 left-0 w-full bg-indigo-600 text-white text-xs font-bold py-2.5 flex justify-center items-center gap-6 z-[60] shadow-lg animate-in slide-in-from-top">
-            <span className="flex items-center gap-2">
-                <Clock size={14} className="animate-pulse"/> 
-                系統已排程於 
-                <span className="text-[#deff9a] text-sm tracking-wide">
-                    {pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}
-                </span> 
-                發布新版本
-            </span>
-            <button onClick={cancelSchedule} className="bg-slate-900/40 hover:bg-slate-900 px-4 py-1.5 rounded-lg text-[10px] transition-colors border border-white/20 flex items-center gap-1">
-                <X size={12}/> 取消排程
-            </button>
+            <span className="flex items-center gap-2"><Clock size={14} className="animate-pulse"/> 系統已排程於 <span className="text-[#deff9a] text-sm tracking-wide">{pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}</span> 發布新版本</span>
+            <button onClick={cancelSchedule} className="bg-slate-900/40 hover:bg-slate-900 px-4 py-1.5 rounded-lg text-[10px] transition-colors border border-white/20 flex items-center gap-1"><X size={12}/> 取消排程</button>
         </div>
       )}
 
-      {/* 🚀 排程發布 Modal */}
       {showScheduleModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl animate-in zoom-in-95">
-            <div>
-              <h3 className="font-black text-indigo-400 text-lg flex items-center gap-2"><CalendarClock size={18} /> 排程發布時間</h3>
-              <p className="text-xs text-slate-400 mt-1">系統將把目前的畫布設定打包，於指定時間自動覆蓋至正式機。</p>
-            </div>
-            
-            <div className="flex gap-3">
-              <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="flex-[3] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
-              <input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="flex-[2] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
-            </div>
-
-            <div className="flex gap-3 mt-2">
-              <button onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300 transition-colors">取消</button>
-              <button onClick={executeSchedulePublish} disabled={isScheduling} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs shadow-lg transition-colors">
-                {isScheduling ? "處理中..." : "確認排程"}
-              </button>
-            </div>
+            <div><h3 className="font-black text-indigo-400 text-lg flex items-center gap-2"><CalendarClock size={18} /> 排程發布時間</h3><p className="text-xs text-slate-400 mt-1">系統將把目前的畫布設定打包，於指定時間自動覆蓋至正式機。</p></div>
+            <div className="flex gap-3"><input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="flex-[3] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" /><input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="flex-[2] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" /></div>
+            <div className="flex gap-3 mt-2"><button onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300 transition-colors">取消</button><button onClick={executeSchedulePublish} disabled={isScheduling} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs shadow-lg transition-colors">{isScheduling ? "處理中..." : "確認排程"}</button></div>
           </div>
         </div>
       )}
@@ -301,17 +234,8 @@ function FlowContent() {
       )}
 
       <div className={`absolute left-8 z-10 flex flex-col gap-3 transition-all duration-300 ${pendingSchedule ? 'top-16' : 'top-8'}`}>
-          <button onClick={executePublish} disabled={isPublishing || isScheduling} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95">
-            <Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> 
-            {isPublishing ? '發布中...' : '立即發布正式機'}
-          </button>
-
-          {/* 🚀 新增：排程發布按鈕 */}
-          <button onClick={() => setShowScheduleModal(true)} disabled={isPublishing || isScheduling || pendingSchedule !== null} className={`text-white px-6 py-3 rounded-2xl font-black tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${pendingSchedule ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-400 shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-105 active:scale-95'} mb-2`}>
-            <CalendarClock size={20} /> 
-            {pendingSchedule ? '已有排程等候中' : '預定排程發布'}
-          </button>
-
+          <button onClick={executePublish} disabled={isPublishing || isScheduling} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95"><Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> {isPublishing ? '發布中...' : '立即發布正式機'}</button>
+          <button onClick={() => setShowScheduleModal(true)} disabled={isPublishing || isScheduling || pendingSchedule !== null} className={`text-white px-6 py-3 rounded-2xl font-black tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${pendingSchedule ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-400 shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-105 active:scale-95'} mb-2`}><CalendarClock size={20} /> {pendingSchedule ? '已有排程等候中' : '預定排程發布'}</button>
           <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Plus size={20} /> ADD NODE</button>
           <button onClick={addTimeRouterNode} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Clock size={20} /> TIME ROUTER</button>
           <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
@@ -361,6 +285,6 @@ function FlowContent() {
   );
 }
 
-export default function FlowEditor() {
-  return <div className="w-full h-full bg-[#020617] flex overflow-hidden font-sans"><ReactFlowProvider><FlowContent /></ReactFlowProvider></div>;
+export default function FlowEditor({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string | null }) {
+  return <div className="w-full h-full bg-[#020617] flex overflow-hidden font-sans"><ReactFlowProvider><FlowContent activeSimulatorNodeId={activeSimulatorNodeId} /></ReactFlowProvider></div>;
 }
