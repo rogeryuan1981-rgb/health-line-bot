@@ -19,7 +19,6 @@ const CustomNode = ({ data, isConnectable }: any) => {
 
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
-      {/* 🚀 改為左側輸入，並凸出邊框 */}
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
       
       <div className="flex flex-col items-center mb-3 mt-1">
@@ -42,7 +41,6 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={opt.id || index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            {/* 🚀 右側動態輸出 */}
             <Handle 
               type="source" 
               position={Position.Right} 
@@ -54,8 +52,8 @@ const CustomNode = ({ data, isConnectable }: any) => {
         ))}
       </div>
 
+      {/* 🚀 已修復註解位置錯誤 */}
       {options.length === 0 && (
-         {/* 🚀 預設右側輸出 */}
          <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
       )}
     </div>
@@ -77,7 +75,6 @@ const GroupNode = ({ data, selected }: NodeProps) => (
 // --- 子組件：時間分流節點 (左進右出) ---
 const TimeRouterNode = ({ data, isConnectable }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative transition-all duration-300">
-    {/* 🚀 改為左側輸入 */}
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
     <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1">
       <Clock size={16} className="text-indigo-400" />
@@ -86,7 +83,6 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
       {data.config?.forceOffHours ? <span className="text-rose-400">🚨 強制下班模式 (開啟)</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
     </div>
-    {/* 🚀 改為右側上下分流輸出 */}
     <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
     <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
     <div className="absolute right-3 top-[22%] text-[9px] font-black text-emerald-400 drop-shadow-md">營業</div>
@@ -171,11 +167,9 @@ function FlowContent() {
 
   const handleOpenSaveModal = () => { setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`); setShowSaveModal(true); };
   
-  // 儲存草稿版本
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
 
-  // 🚀 發布至正式環境 (打包成單一 JSON 給 Webhook 讀取)
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return;
     setIsPublishing(true);
@@ -210,7 +204,6 @@ function FlowContent() {
       )}
 
       <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
-          {/* 🚀 正式發布按鈕 */}
           <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95 mb-2">
             <Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> 
             {isPublishing ? '打包發布中...' : '發布至正式機'}
