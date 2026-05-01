@@ -19,6 +19,7 @@ const CustomStyles = () => (
   `}} />
 );
 
+// 🚀 還原透明度，確保卡片疊在群組上能透出正確的深淺層次
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -107,9 +108,9 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           return { id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 }, data: { title: data.nodeName, customLabel: data.customLabel }, zIndex: -1 };
         }
         if (data.messageType === 'time_router') {
-          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
+          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, data: { nodeName: data.nodeName, config: data.config } };
         }
-        return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword } };
+        return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword } };
       }));
     });
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
@@ -146,46 +147,40 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 防禦型發布：用 JSON 序列化天然剃除 undefined，絕不寫入 null 到特殊欄位
+  // 🚀 核心發布邏輯修正：利用 JSON.stringify 原生特性剔除 undefined，絕不寫入 null
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj));
-
-      const nodesToPublish = flowObject.nodes.map(n => sanitize({
+      
+      const nodesToPublish = flowObject.nodes.map(n => ({
         id: String(n.id),
         position: n.positionAbsolute || n.position || { x: 0, y: 0 },
         type: String(n.type || 'custom'),
         data: n.data || {},
-        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
-        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-        messageType: String(n.data?.messageType || 'text'),
-        nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
-        customLabel: String(n.data?.customLabel || ""),
-        parentNode: null
+        width: n.width,
+        height: n.height,
+        style: n.style
       }));
 
-      const edgesToPublish = flowObject.edges.map(e => {
-        const edgeObj: any = {
-            id: String(e.id), source: String(e.source), target: String(e.target),
-            type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
-            style: e.style || { stroke: '#deff9a', strokeWidth: 2 }
-        };
-        // 只有確實存在的屬性才加入，不塞 undefined，也不塞 null
-        if (e.sourceHandle) edgeObj.sourceHandle = String(e.sourceHandle);
-        if (e.targetHandle) edgeObj.targetHandle = String(e.targetHandle);
-        if (e.markerEnd) edgeObj.markerEnd = e.markerEnd;
-        if (e.markerStart) edgeObj.markerStart = e.markerStart;
-        return sanitize(edgeObj);
-      });
+      const edgesToPublish = flowObject.edges.map(e => ({
+        id: String(e.id), source: String(e.source), target: String(e.target),
+        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+        type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+        style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
+      }));
+
+      // JSON 原生會把 value 為 undefined 的 key 整組刪掉，這樣 Firestore 就不會報錯
+      const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
+      const cleanEdges = JSON.parse(JSON.stringify(edgesToPublish));
+      const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
-          nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
+          nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 1:1 發布成功！");
+      alert("🚀 發布成功！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -249,8 +244,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
-      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
-      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
   );
 }
