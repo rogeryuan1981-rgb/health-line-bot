@@ -9,21 +9,21 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 關鍵修正：不再用 opacity 隱藏 Handle，讓綠色/灰色點點重見天日
+// 🚀 核心修正 4：移除了 opacity: 0，您的綠色小圓點回來了！
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
+    .react-flow__handle { pointer-events: none !important; cursor: default !important; }
     .node-prod-glow { box-shadow: 0 0 30px rgba(250,204,21,0.4) !important; border-color: #facc15 !important; }
   `}} />
 );
 
-// 🚀 與編輯器共用的顏色邏輯
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
-  const t = type.toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
+  const t = String(type).toLowerCase().trim();
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
@@ -36,7 +36,7 @@ const CustomNodeProd = ({ data }: any) => {
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl border-2 border-black z-50">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
-          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
+          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.nodeName}
         </div>
         <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
@@ -105,13 +105,12 @@ function ProductionCanvas() {
 
         setNodes(processedNodes);
         
-        // 🚀 強制套用 smoothstep，讓直角折線消失
+        // 🚀 核心修正 5：忠實讀取發布過來的邊線設定 (不再硬寫 smoothstep)
         setEdges((raw.edges || []).map((e: any) => ({ 
             ...e, 
-            type: 'smoothstep', 
-            animated: true, 
-            style: { stroke: e.color || '#deff9a', strokeWidth: 2 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#deff9a' }
+            animated: e.animated || true, 
+            style: e.style || { stroke: '#deff9a', strokeWidth: 2 },
+            markerEnd: e.markerEnd || { type: MarkerType.ArrowClosed, color: '#deff9a' }
         })));
 
         if (!initRef.current && raw.viewport) {
