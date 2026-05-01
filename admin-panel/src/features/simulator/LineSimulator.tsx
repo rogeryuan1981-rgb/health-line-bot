@@ -3,9 +3,6 @@ import { Youtube, FileText, Send, RotateCcw, Smartphone, MessageCircle } from 'l
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-// ==========================================
-// 內部共用元件：氣泡內容 (保留您原本的漂亮 UI)
-// ==========================================
 export function BubbleContent({ data, onAction }: { data: any, onAction?: (text: string) => void }) {
   if (!data || !data.messageType) return null;
   const isFlex = data.messageType === 'flex'; const isCarousel = data.messageType === 'carousel';
@@ -89,9 +86,6 @@ export function BubbleContent({ data, onAction }: { data: any, onAction?: (text:
   )
 }
 
-// ==========================================
-// 給 NodeEditPanel 用的靜態預覽 (保持原樣匯出不破壞架構)
-// ==========================================
 export default function LineSimulator({ data }: { data: any }) {
   if (!data || !data.nodeName) return null;
   return (
@@ -109,31 +103,31 @@ export default function LineSimulator({ data }: { data: any }) {
   );
 }
 
-// ==========================================
-// 🚀 給 App.tsx 用的完整實機互動模擬器大腦
-// ==========================================
-export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: string | null) => void }) {
+// 🚀 給 App.tsx 用的完整實機互動模擬器大腦 (升級版)
+export function InteractiveSimulator({ onPathUpdate }: { onPathUpdate: (path: {nodes: string[], edges: string[]}) => void }) {
     const [messages, setMessages] = useState<{id: string, sender: 'user'|'bot', text?: string, data?: any}[]>([]);
     const [inputText, setInputText] = useState("");
     const [nodes, setNodes] = useState<any[]>([]);
     const [edges, setEdges] = useState<any[]>([]);
-    const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
+    
+    // 🚀 新增：追蹤目前走過的所有路徑
+    const [pathTracker, setPathTracker] = useState<{nodes: string[], edges: string[]}>({nodes: [], edges: []});
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // 載入即時畫布資料
     useEffect(() => {
         const fetchData = async () => {
             const rulesSnap = await getDocs(collection(db, "flowRules"));
             const edgesSnap = await getDocs(collection(db, "flowEdges"));
-            setNodes(rulesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setEdges(edgesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const nData = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const eData = edgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setNodes(nData); setEdges(eData);
             
-            // 啟動預設回覆
-            const defaultNode = rulesSnap.docs.map(d=>({id: d.id, ...d.data()})).find((n:any) => n.nodeName === '預設回覆');
+            const defaultNode = nData.find((n:any) => n.nodeName === '預設回覆');
             if (defaultNode) {
                 setTimeout(() => {
-                    setCurrentNodeId(defaultNode.id);
-                    onNodeActive(defaultNode.id);
+                    const initPath = { nodes: [defaultNode.id], edges: [] };
+                    setPathTracker(initPath);
+                    onPathUpdate(initPath);
                     setMessages([{ id: Date.now().toString(), sender: 'bot', data: defaultNode }]);
                 }, 500);
             }
@@ -141,22 +135,27 @@ export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: stri
         fetchData();
     }, []);
 
-    // 滾動到底部
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages]);
 
-    // 核心雙引擎尋徑邏輯 (100% 模擬 Webhook)
     const handleSend = async (text: string) => {
         if (!text.trim()) return;
         setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text }]);
         setInputText("");
 
         let targetNode: any = null;
-        // 1. 全域攔截
+        let tempNodes = [...pathTracker.nodes];
+        let tempEdges = [...pathTracker.edges];
+
+        // 1. 全域攔截 (任意門)
         targetNode = nodes.find(n => n.isGlobal && n.nodeName === text);
+        if (targetNode) {
+            tempNodes.push(targetNode.id); // 全域跳轉只加 Node，沒有 Edge
+        }
 
         // 2. 狀態尋徑
+        const currentNodeId = tempNodes[tempNodes.length - 1];
         if (!targetNode && currentNodeId) {
             const current = nodes.find(n => n.id === currentNodeId);
             if (current) {
@@ -164,57 +163,65 @@ export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: stri
                 const idx = options.findIndex((o:any) => o.target === text || o.keyword === text || o.label === text);
                 if (idx !== -1) {
                     const edge = edges.find(e => e.source === currentNodeId && e.sourceHandle === `opt_${idx}`);
-                    if (edge) targetNode = nodes.find(n => n.id === edge.target);
+                    if (edge) {
+                        targetNode = nodes.find(n => n.id === edge.target);
+                        tempEdges.push(edge.id);
+                        tempNodes.push(targetNode.id);
+                    }
                 }
             }
         }
 
-        // 3. 預設兜底
-        if (!targetNode) targetNode = nodes.find(n => n.nodeName === '預設回覆');
+        // 3. 兜底
+        if (!targetNode) {
+            targetNode = nodes.find(n => n.nodeName === '預設回覆');
+            if (targetNode) tempNodes.push(targetNode.id);
+        }
         if (!targetNode) return;
 
-        // 4. 時空警察 (Time Router 穿越)
+        // 4. 時空警察
         let renderNode = targetNode;
         let loopCount = 0;
         while(renderNode && renderNode.messageType === 'time_router' && loopCount < 5) {
             loopCount++;
             const config = renderNode.config || {};
-            
-            // 使用當前真實時間模擬
             const now = new Date();
-            const hours = String(now.getHours()).padStart(2, '0');
-            const mins = String(now.getMinutes()).padStart(2, '0');
-            const currentTwTimeStr = `${hours}:${mins}`;
-
+            const currentTwTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
             let isBusiness = false;
             if (!config.forceOffHours) {
-                const startTime = config.startTime || "09:00"; const endTime = config.endTime || "18:00";
-                if (currentTwTimeStr >= startTime && currentTwTimeStr <= endTime) {
-                    const day = now.getDay();
-                    if (!config.workDays || config.workDays.includes(day)) isBusiness = true;
+                if (currentTwTimeStr >= (config.startTime||"09:00") && currentTwTimeStr <= (config.endTime||"18:00")) {
+                    if (!config.workDays || config.workDays.includes(now.getDay())) isBusiness = true;
                 }
             }
 
             const handle = isBusiness ? 'business' : 'off-hours';
             const edge = edges.find(e => e.source === renderNode.id && e.sourceHandle === handle);
-            renderNode = edge ? nodes.find(n => n.id === edge.target) : null;
+            if (edge) {
+                tempEdges.push(edge.id);
+                renderNode = nodes.find(n => n.id === edge.target);
+                if (renderNode) tempNodes.push(renderNode.id);
+            } else {
+                renderNode = null;
+            }
         }
 
         if (renderNode && renderNode.messageType !== 'time_router') {
-            setCurrentNodeId(renderNode.id);
-            onNodeActive(renderNode.id); // 🚀 觸發畫布鏡頭移動與發光！
+            setPathTracker({ nodes: tempNodes, edges: tempEdges });
+            onPathUpdate({ nodes: tempNodes, edges: tempEdges });
             setTimeout(() => {
                 setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', data: renderNode }]);
-            }, 600); // 模擬網路延遲
+            }, 600);
         }
     };
 
     const resetSimulation = () => {
-        setMessages([]); setCurrentNodeId(null); onNodeActive(null);
+        setMessages([]); 
         const defaultNode = nodes.find(n => n.nodeName === '預設回覆');
         if (defaultNode) {
             setTimeout(() => {
-                setCurrentNodeId(defaultNode.id); onNodeActive(defaultNode.id);
+                const initPath = { nodes: [defaultNode.id], edges: [] };
+                setPathTracker(initPath); onPathUpdate(initPath);
                 setMessages([{ id: Date.now().toString(), sender: 'bot', data: defaultNode }]);
             }, 300);
         }
@@ -222,7 +229,6 @@ export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: stri
 
     return (
         <div className="w-full h-full flex flex-col bg-[#849ebf] font-sans">
-            {/* Header */}
             <div className="h-16 bg-[#273246] flex items-center justify-between px-5 shadow-md z-10">
                 <div className="flex items-center gap-3">
                     <MessageCircle className="text-[#06C755]" size={20} />
@@ -233,7 +239,6 @@ export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: stri
                 </button>
             </div>
 
-            {/* Chat Area */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
                 {messages.map(msg => (
                     <div key={msg.id} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -251,12 +256,9 @@ export function InteractiveSimulator({ onNodeActive }: { onNodeActive: (id: stri
                         )}
                     </div>
                 ))}
-                {messages.length === 0 && (
-                    <div className="h-full flex items-center justify-center text-white/50 text-xs font-bold">載入邏輯中...</div>
-                )}
+                {messages.length === 0 && <div className="h-full flex items-center justify-center text-white/50 text-xs font-bold">載入邏輯中...</div>}
             </div>
 
-            {/* Input Area */}
             <div className="bg-white p-3 border-t border-gray-200 flex gap-2 items-center pb-6">
                 <input 
                     value={inputText} onChange={e => setInputText(e.target.value)}
