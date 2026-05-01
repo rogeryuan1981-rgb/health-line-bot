@@ -107,7 +107,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           return { id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 }, data: { title: data.nodeName, customLabel: data.customLabel }, zIndex: -1 };
         }
         if (data.messageType === 'time_router') {
-          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, data: { nodeName: data.nodeName, config: data.config } };
+          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
         return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword } };
       }));
@@ -115,13 +115,18 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
-        return { 
-            id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, 
+        const edgeObj: any = {
+            id: d.id, source: data.source, target: data.target,
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
-            style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }, 
-            markerEnd: (data.arrowDirection === 'none' || data.arrowDirection === 'backward') ? undefined : { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' },
-            markerStart: (data.arrowDirection === 'backward' || data.arrowDirection === 'dual') ? { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } : undefined
+            style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }
         };
+        if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
+        if (data.targetHandle) edgeObj.targetHandle = data.targetHandle;
+        if (data.arrowDirection && data.arrowDirection !== 'none') {
+            if (data.arrowDirection !== 'backward') edgeObj.markerEnd = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
+            if (data.arrowDirection === 'backward' || data.arrowDirection === 'dual') edgeObj.markerStart = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
+        }
+        return edgeObj;
       }));
     });
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -141,16 +146,19 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
+  // 🚀 防禦型發布：用 JSON 序列化天然剃除 undefined，絕不寫入 null 到特殊欄位
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      const nodesToPublish = flowObject.nodes.map(n => ({
+      const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj));
+
+      const nodesToPublish = flowObject.nodes.map(n => sanitize({
         id: String(n.id),
         position: n.positionAbsolute || n.position || { x: 0, y: 0 },
         type: String(n.type || 'custom'),
-        data: JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v)),
+        data: n.data || {},
         width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
         height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
         messageType: String(n.data?.messageType || 'text'),
@@ -159,25 +167,26 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: null
       }));
 
-      const edgesToPublish = flowObject.edges.map(e => ({
-        id: String(e.id), source: String(e.source), target: String(e.target),
-        sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
-        targetHandle: e.targetHandle ? String(e.targetHandle) : null,
-        type: String(e.type || 'smoothstep'),
-        animated: Boolean(e.animated),
-        style: JSON.parse(JSON.stringify(e.style || {})),
-        markerEnd: e.markerEnd ? JSON.parse(JSON.stringify(e.markerEnd)) : null,
-        markerStart: e.markerStart ? JSON.parse(JSON.stringify(e.markerStart)) : null
-      }));
+      const edgesToPublish = flowObject.edges.map(e => {
+        const edgeObj: any = {
+            id: String(e.id), source: String(e.source), target: String(e.target),
+            type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+            style: e.style || { stroke: '#deff9a', strokeWidth: 2 }
+        };
+        // 只有確實存在的屬性才加入，不塞 undefined，也不塞 null
+        if (e.sourceHandle) edgeObj.sourceHandle = String(e.sourceHandle);
+        if (e.targetHandle) edgeObj.targetHandle = String(e.targetHandle);
+        if (e.markerEnd) edgeObj.markerEnd = e.markerEnd;
+        if (e.markerStart) edgeObj.markerStart = e.markerStart;
+        return sanitize(edgeObj);
+      });
 
-      await setDoc(doc(db, "botConfig", "production"), { nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport, publishedAt: serverTimestamp(), publisher: "Roger" });
+      await setDoc(doc(db, "botConfig", "production"), { 
+          nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
+          publishedAt: serverTimestamp(), publisher: "Roger" 
+      });
       alert("🚀 1:1 發布成功！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
-  };
-
-  const handleOpenSaveModal = () => {
-    setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`);
-    setShowSaveModal(true);
   };
 
   return (
@@ -211,7 +220,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-1" />
-          <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
+          <button onClick={() => { setSaveName(`版本_${new Date().toISOString().slice(0, 10)}`); setShowSaveModal(true); }} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
       {showSnapshots && (
@@ -234,13 +243,14 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
         onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
+        onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
         onNodeDragStop={async (_, n) => { const p: any = { position: n.position }; if (n.type === 'group') { p.width = n.width; p.height = n.height; } await updateDoc(doc(db, "flowRules", n.id), p); }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
-      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
-      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
   );
 }
