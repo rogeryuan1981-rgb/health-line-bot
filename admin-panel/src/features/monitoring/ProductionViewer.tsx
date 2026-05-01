@@ -9,8 +9,8 @@ import { db } from '../../firebase';
 import { ShieldCheck, Globe, AlertTriangle, Flag, Clock } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 注入 100% 同步編輯器的 CSS 特效
-const CustomStylesProd = () => (
+// 🚀 100% 同步編輯器的視覺 CSS (包含發光、群組色彩、與連線樣式)
+const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
       0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
@@ -18,11 +18,12 @@ const CustomStylesProd = () => (
       100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
     .node-prod-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; }
+    /* 🚀 隱藏圓點但保留連線錨點定位功能 */
     .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
   `}} />
 );
 
-// --- 🚀 完美克隆：視覺組件區 ---
+// --- 🚀 完美克隆：視覺組件區 (加入正確的 Handle ID 以修復連線偏移) ---
 
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
@@ -126,13 +127,8 @@ function ProductionCanvas() {
             if (e.sourceHandle === 'off-hours') edgeColor = '#fb7185';
             if (e.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
             return { 
-                id: e.id, 
-                source: e.source, 
-                target: e.target, 
-                sourceHandle: e.sourceHandle, 
-                targetHandle: e.targetHandle, 
-                animated: true, 
-                style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: '5 5' }, 
+                id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, 
+                animated: true, style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: '5 5' }, 
                 markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor } 
             };
         }));
@@ -147,11 +143,11 @@ function ProductionCanvas() {
 
   return (
     <div className="flex flex-col h-full bg-[#020617] overflow-hidden">
-      <CustomStylesProd />
+      <GlobalProdStyles />
       
-      {/* 🚀 修復：改為絕對定位的半透明懸浮小卡片，確保不遮擋右上角 Roger 帳號資訊 */}
+      {/* 🚀 懸浮監測資訊卡片：改為半透明磨砂質感，絕對不遮擋 Roger 帳號資訊 */}
       <div className="absolute top-4 left-6 z-30 flex flex-col gap-2 pointer-events-none">
-        <div className="bg-slate-900/80 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 pointer-events-auto">
+        <div className="bg-slate-900/60 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 pointer-events-auto">
             <div className="bg-rose-500 p-1.5 rounded-lg shadow-lg shadow-rose-500/20"><ShieldCheck className="text-white" size={18} /></div>
             <div>
                 <h1 className="text-[11px] font-black text-white italic tracking-widest leading-tight uppercase">Production Live</h1>
@@ -163,7 +159,7 @@ function ProductionCanvas() {
                 <div className="text-sm font-black text-white">{stats.nodes}</div>
             </div>
         </div>
-        <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+        <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit pointer-events-auto">
             <AlertTriangle size={10} className="text-rose-500 animate-pulse" />
             <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Monitor Mode</span>
         </div>
