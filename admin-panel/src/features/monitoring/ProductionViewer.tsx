@@ -19,7 +19,6 @@ const GlobalProdStyles = () => (
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
-  
   const getBg = () => {
     if (isStart) return 'bg-slate-900 border-yellow-400';
     switch(data.messageType) {
@@ -39,7 +38,7 @@ const CustomNodeProd = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
           {data.nodeName}
         </div>
-        <div className="mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/60">{data.messageType}</div>
+        <div className="mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/60 border border-white/10">{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
@@ -93,8 +92,10 @@ function ProductionCanvas() {
           }
           return base;
         });
+
         setNodes(processedNodes);
         setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 3 } })));
+
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 500);
@@ -111,7 +112,7 @@ function ProductionCanvas() {
       <div className="absolute top-8 left-8 z-50">
         <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl flex items-center gap-5 backdrop-blur-xl">
           <div className="bg-rose-600 p-2.5 rounded-xl shadow-rose-600/30"><ShieldCheck className="text-white" size={24} /></div>
-          <h1 className="text-[12px] font-black text-rose-500 italic uppercase tracking-widest">Production Monitoring</h1>
+          <h1 className="text-[12px] font-black text-rose-500 italic uppercase">Monitoring</h1>
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden">
