@@ -12,7 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 視覺特效定義
+// 🚀 視覺特效與動態連線定義
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -48,10 +48,10 @@ const CustomNode = ({ data, isConnectable }: any) => {
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-      <div className="flex flex-col items-center mb-3 mt-1 text-white">
+      <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight text-white">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
@@ -113,7 +113,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const reactFlowInstance = useReactFlow(); 
+  const { getViewport, getNodes, getEdges } = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -164,7 +164,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 接回路徑高亮邏輯
+  // 🚀 路徑高亮邏輯 (修復 TS6133)
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
@@ -178,69 +178,64 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
-            return { ...e, className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
+            return { ...e, animated: isEdgeVisited ? true : (e.animated), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
         }));
     }
   }, [activePath]); 
 
-  const addNewNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
-  const addGroupBox = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
-  const addTimeRouterNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
+  const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
+  const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
+  const addTimeRouterNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
   const handleOpenSaveModal = () => { setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`); setShowSaveModal(true); };
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 核心發布邏輯：強化穩定性與座標絕對化
+  // 🚀 關鍵修正：解決 Firebase 不支援 undefined 的問題，並同步視角與絕對座標
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
     
     setIsPublishing(true); 
     try { 
-      // 🚀 使用 reactFlowInstance 直接獲取最新的資料
-      const flowObject = reactFlowInstance.toObject();
-      const currentNodes = flowObject.nodes;
-      const currentEdges = flowObject.edges;
-      const currentViewport = flowObject.viewport;
-
-      const nodesToPublish = currentNodes.map(n => ({
+      // 🚀 清洗資料：將 undefined 轉為 null
+      const currentNodes = getNodes().map(n => ({
         id: n.id,
-        // 🚀 確保存入絕對座標，修復監測畫面分家的問題
-        position: n.positionAbsolute || n.position, 
-        type: n.type,
-        data: n.data,
-        parentNode: n.parentNode || null,
+        position: n.positionAbsolute || n.position || { x: 0, y: 0 }, 
+        type: n.type || 'custom',
+        data: n.data || {},
+        parentNode: n.parentNode || null, // 關鍵：轉 undefined 為 null
         width: n.width || n.style?.width || null,
         height: n.height || n.style?.height || null,
-        messageType: n.data.messageType,
-        nodeName: n.data.nodeName || n.data.label,
+        messageType: n.data.messageType || 'text',
+        nodeName: n.data.nodeName || n.data.label || 'Node',
         customLabel: n.data.customLabel || ""
       }));
 
-      const edgesToPublish = currentEdges.map(e => ({
+      const currentEdges = getEdges().map(e => ({
         id: e.id,
         source: e.source,
         target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
+        sourceHandle: e.sourceHandle || null,
+        targetHandle: e.targetHandle || null,
         color: e.style?.stroke || '#deff9a'
       }));
 
-      // 🚀 正式寫入 Firestore
+      const viewport = getViewport();
+
       await setDoc(doc(db, "botConfig", "production"), { 
-        nodes: nodesToPublish, 
-        edges: edgesToPublish, 
-        viewport: currentViewport, 
+        nodes: currentNodes, 
+        edges: currentEdges, 
+        viewport: viewport, 
         publishedAt: serverTimestamp(),
-        publisher: "Roger" 
+        publisher: "Roger"
       }); 
 
-      alert("🚀 發布成功！正式環境已同步最新 1:1 配置。"); 
+      alert("🚀 發布成功！監測畫面現在已 1:1 還原設定值！"); 
     } catch (e) { 
       console.error("❌ 發布失敗詳細原因:", e);
-      alert("發布失敗，請確認網路連線或按 F12 查看 Console 報錯。"); 
+      alert("發布失敗，請確認後台權限設定"); 
     } finally { 
       setIsPublishing(false); 
     } 
