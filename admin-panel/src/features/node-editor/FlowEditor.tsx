@@ -113,6 +113,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
+  // 🚀 關鍵修復：從 useReactFlow 中解構出實體方法
   const { getViewport, getNodes, getEdges } = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
@@ -190,20 +191,21 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 關鍵發布區域修正
+  // 🚀 關鍵發布區域修正：使用 getNodes() 獲取絕對座標，並同步視角
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
     setIsPublishing(true); 
     try { 
-      // 🚀 使用 getNodes() 獲取帶有 positionAbsolute 的最新資料
+      // 🚀 正確獲取畫布當前所有資料
       const currentNodes = getNodes();
       const currentEdges = getEdges();
       const currentViewport = getViewport();
 
       const nodesToPublish = currentNodes.map(n => ({
         id: n.id,
-        position: n.positionAbsolute || n.position, // 存入絕對座標解決分家問題
+        // 🚀 使用 positionAbsolute 確保座標是畫布上的絕對值，修復群組外飛的問題
+        position: n.positionAbsolute || n.position, 
         type: n.type,
         data: n.data,
         parentNode: n.parentNode || null,
@@ -226,14 +228,14 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
         edges: edgesToPublish, 
-        viewport: currentViewport, // 同步放大比例
+        viewport: currentViewport, // 🚀 存入視角比例與中心點
         publishedAt: serverTimestamp(),
         publisher: "Yuan Roger"
       }); 
-      alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！"); 
+      alert("🚀 發布成功！正式環境已套用 1:1 完整邏輯與視覺配置！"); 
     } catch (e) { 
-      console.error("發布出錯：", e);
-      alert("發布失敗，請查看後台錯誤訊息"); 
+      console.error("發布失敗：", e);
+      alert("發布失敗，請重試"); 
     } finally { 
       setIsPublishing(false); 
     } 
