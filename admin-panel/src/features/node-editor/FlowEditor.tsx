@@ -6,11 +6,11 @@ import ReactFlow, {
   NodeResizer 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, getDocs, writeBatch, query, orderBy, deleteField } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, getDocs, writeBatch, query, orderBy, deleteField, where } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket } from 'lucide-react';
+import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
 // --- 子組件：標準訊息節點 (左進右出 + 動態高度) ---
 const CustomNode = ({ data, isConnectable }: any) => {
@@ -52,7 +52,6 @@ const CustomNode = ({ data, isConnectable }: any) => {
         ))}
       </div>
 
-      {/* 🚀 已修復註解位置錯誤 */}
       {options.length === 0 && (
          <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
       )}
@@ -104,6 +103,14 @@ function FlowContent() {
   const [saveName, setSaveName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  
+  // 🚀 排程發布的狀態管理
+  const [pendingSchedule, setPendingSchedule] = useState<any>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
+  
   const { getViewport } = useReactFlow();
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -158,7 +165,17 @@ function FlowContent() {
       }));
     });
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
+    
+    // 🚀 監聽是否有等待中的排程發布任務
+    const unsubSchedule = onSnapshot(query(collection(db, "scheduled_releases"), where("status", "==", "pending")), (snap) => {
+      if (!snap.empty) {
+        setPendingSchedule({ id: snap.docs[0].id, ...snap.docs[0].data() });
+      } else {
+        setPendingSchedule(null);
+      }
+    });
+
+    return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
@@ -170,8 +187,48 @@ function FlowContent() {
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
 
+  // 🚀 執行排程發布 (打包成時空膠囊存入 scheduled_releases)
+  const executeSchedulePublish = async () => {
+    if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; }
+    const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`);
+    if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; }
+
+    setIsScheduling(true);
+    try {
+      const nodeS = await getDocs(collection(db, "flowRules"));
+      const edgeS = await getDocs(collection(db, "flowEdges"));
+      await addDoc(collection(db, "scheduled_releases"), {
+        triggerTime: triggerDateTime,
+        status: 'pending',
+        snapshot: {
+          nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })),
+          edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() }))
+        },
+        createdAt: serverTimestamp()
+      });
+      setShowScheduleModal(false);
+      alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`);
+    } catch (e) {
+      console.error(e); alert("排程失敗，請重試");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  // 🚀 取消目前的排程
+  const cancelSchedule = async () => {
+    if (!pendingSchedule) return;
+    if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return;
+    try {
+      await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() });
+      alert("✅ 已成功取消排程");
+    } catch(e) { alert("取消失敗"); }
+  };
+
   const executePublish = async () => {
-    if (!window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return;
+    if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return;
+    if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return;
+    
     setIsPublishing(true);
     try {
       const nodeS = await getDocs(collection(db, "flowRules"));
@@ -184,8 +241,7 @@ function FlowContent() {
       await setDoc(doc(db, "botConfig", "production"), payload);
       alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！");
     } catch (e) {
-      console.error(e);
-      alert("發布失敗，請重試");
+      console.error(e); alert("發布失敗，請重試");
     } finally {
       setIsPublishing(false);
     }
@@ -193,6 +249,47 @@ function FlowContent() {
 
   return (
     <>
+      {/* 🚀 排程狀態橫幅 Banner */}
+      {pendingSchedule && (
+        <div className="absolute top-0 left-0 w-full bg-indigo-600 text-white text-xs font-bold py-2.5 flex justify-center items-center gap-6 z-[60] shadow-lg animate-in slide-in-from-top">
+            <span className="flex items-center gap-2">
+                <Clock size={14} className="animate-pulse"/> 
+                系統已排程於 
+                <span className="text-[#deff9a] text-sm tracking-wide">
+                    {pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}
+                </span> 
+                發布新版本
+            </span>
+            <button onClick={cancelSchedule} className="bg-slate-900/40 hover:bg-slate-900 px-4 py-1.5 rounded-lg text-[10px] transition-colors border border-white/20 flex items-center gap-1">
+                <X size={12}/> 取消排程
+            </button>
+        </div>
+      )}
+
+      {/* 🚀 排程發布 Modal */}
+      {showScheduleModal && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl animate-in zoom-in-95">
+            <div>
+              <h3 className="font-black text-indigo-400 text-lg flex items-center gap-2"><CalendarClock size={18} /> 排程發布時間</h3>
+              <p className="text-xs text-slate-400 mt-1">系統將把目前的畫布設定打包，於指定時間自動覆蓋至正式機。</p>
+            </div>
+            
+            <div className="flex gap-3">
+              <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="flex-[3] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
+              <input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="flex-[2] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300 transition-colors">取消</button>
+              <button onClick={executeSchedulePublish} disabled={isScheduling} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs shadow-lg transition-colors">
+                {isScheduling ? "處理中..." : "確認排程"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSaveModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
@@ -203,15 +300,21 @@ function FlowContent() {
         </div>
       )}
 
-      <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
-          <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95 mb-2">
+      <div className={`absolute left-8 z-10 flex flex-col gap-3 transition-all duration-300 ${pendingSchedule ? 'top-16' : 'top-8'}`}>
+          <button onClick={executePublish} disabled={isPublishing || isScheduling} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95">
             <Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> 
-            {isPublishing ? '打包發布中...' : '發布至正式機'}
+            {isPublishing ? '發布中...' : '立即發布正式機'}
           </button>
 
-          <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center gap-2 hover:scale-105"><Plus size={20} /> ADD NODE</button>
-          <button onClick={addTimeRouterNode} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center gap-2 hover:scale-105"><Clock size={20} /> TIME ROUTER</button>
-          <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center gap-2 hover:bg-white/20 border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
+          {/* 🚀 新增：排程發布按鈕 */}
+          <button onClick={() => setShowScheduleModal(true)} disabled={isPublishing || isScheduling || pendingSchedule !== null} className={`text-white px-6 py-3 rounded-2xl font-black tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${pendingSchedule ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-400 shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-105 active:scale-95'} mb-2`}>
+            <CalendarClock size={20} /> 
+            {pendingSchedule ? '已有排程等候中' : '預定排程發布'}
+          </button>
+
+          <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Plus size={20} /> ADD NODE</button>
+          <button onClick={addTimeRouterNode} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Clock size={20} /> TIME ROUTER</button>
+          <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex justify-center gap-2 border ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent hover:bg-slate-800'}`}><Magnet size={14}/> 對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-2 w-full"></div>
           <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex justify-center gap-2 hover:bg-blue-500"><Save size={14}/> 儲存草稿版本</button>
@@ -219,7 +322,7 @@ function FlowContent() {
       </div>
 
       {showSnapshots && (
-          <div className="absolute top-[420px] left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+          <div className={`absolute left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${pendingSchedule ? 'top-[480px]' : 'top-[440px]'}`}>
               <div className="p-4 bg-slate-800/50 border-b flex justify-between"><span className="text-[10px] font-black text-slate-400">SAVED VERSIONS</span><button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button></div>
               <div className="max-h-80 overflow-y-auto p-2">
                   {snapshots.map(snap => (<div key={snap.id} className="p-3 bg-slate-950/50 hover:bg-slate-800 rounded-xl mb-1 cursor-pointer flex justify-between" onClick={() => loadSnapshot(snap)}><div className="flex flex-col"><span className="text-xs text-white truncate max-w-[160px]">{snap.name}</span></div><Download size={14} className="text-[#deff9a]"/></div>))}
