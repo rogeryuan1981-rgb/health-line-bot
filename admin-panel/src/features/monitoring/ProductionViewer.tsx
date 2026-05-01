@@ -18,7 +18,7 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 真正 100% 還原：把 /80 透明度全部加回來！
+// 🚀 100% 繼承編輯器的透明度設計 (保留 /80)
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -41,10 +41,12 @@ const CustomNodeProd = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data?.nodeName || 'Node'}
         </div>
+        {/* 保留 bg-black/40 */}
         <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data?.messageType || 'TEXT'}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
+          {/* 保留 bg-slate-950/60 */}
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
@@ -68,7 +70,7 @@ const GroupNodeProd = ({ data }: any) => {
   );
 };
 
-// 🚀 真正 100% 還原：把 bg-indigo-950/90 加回來！
+// 🚀 100% 繼承編輯器的 TimeRouter (保留 /90)
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
@@ -102,10 +104,11 @@ function ProductionCanvas() {
             style: n.style || {} 
           };
           
-          // 🚀 保留群組尺寸修復
+          // 🚀 保留群組尺寸修復 (這段是必要的，否則群組會塌陷)
           if (n.type === 'group') {
             base.style.width = Number(n.width) || Number(base.style.width) || 400;
             base.style.height = Number(n.height) || Number(base.style.height) || 300;
+            base.style.borderRadius = '32px';
           }
           
           return base;
@@ -113,6 +116,7 @@ function ProductionCanvas() {
         
         setNodes(safeNodes);
         
+        // 🚀 保留防禦白畫面崩潰的邏輯
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
             const cleanEdge = { ...e };
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
