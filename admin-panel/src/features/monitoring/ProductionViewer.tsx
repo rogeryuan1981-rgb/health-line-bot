@@ -1,20 +1,36 @@
 import { useState, useEffect } from 'react';
 import ReactFlow, { 
   Controls, Background, BackgroundVariant, Node, Edge, 
-  MarkerType, ReactFlowProvider, NodeProps
+  MarkerType, ReactFlowProvider, Handle, Position
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { ShieldCheck, Globe, AlertTriangle, Flag, Clock } from 'lucide-react';
-import NodeEditPanel from '../message-form/NodeEditPanel'; // 🚀 複用編輯面板
+import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// --- 🚀 唯讀視覺組件 ---
-const CustomNodeReadOnly = ({ data }: any) => {
+// 🚀 注入與編輯器完全一致的 CSS 特效，確保發光與群組視覺 1:1
+const CustomStyles = () => (
+  <style dangerouslySetInnerHTML={{__html: `
+    @keyframes smoothGlow {
+      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
+      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
+      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
+    }
+    .node-glow {
+      animation: smoothGlow 2.5s ease-in-out infinite !important;
+    }
+  `}} />
+);
+
+// --- 🚀 修正版：具備 Handle 的唯讀節點，確保連線能正常顯示 ---
+
+const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} isConnectable={false} />
       <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs border-2 border-black z-50 whitespace-nowrap">🚀 LIVE START</div>}
         {data.isGlobal && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
@@ -22,40 +38,45 @@ const CustomNodeReadOnly = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>
-          {data.messageType}
-        </div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-400">{opt.label}</div>
+          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-400">
+            {opt.label}
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} style={{ opacity: 0 }} isConnectable={false} />
+          </div>
         ))}
       </div>
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" style={{ opacity: 0 }} isConnectable={false} />}
     </div>
   );
 };
 
-const GroupNodeReadOnly = ({ data }: NodeProps) => (
-  <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
+const GroupNodeProd = ({ data }: any) => (
+  <div className={`w-full h-full border-2 border-dashed rounded-3xl relative ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
     <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '未命名區塊'}</div>
   </div>
 );
 
-const TimeRouterNodeReadOnly = ({ data }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative transition-all duration-300">
+const TimeRouterNodeProd = ({ data }: any) => (
+  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative">
+    <Handle type="target" position={Position.Left} style={{ opacity: 0 }} isConnectable={false} />
     <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
       {data.config?.forceOffHours ? <span className="text-rose-400">🚨 強制下班模式</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
     </div>
+    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%', opacity: 0 }} isConnectable={false} />
+    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%', opacity: 0 }} isConnectable={false} />
   </div>
 );
 
-const nodeTypes = { custom: CustomNodeReadOnly, group: GroupNodeReadOnly, timeRouter: TimeRouterNodeReadOnly };
+const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [stats, setStats] = useState({ nodes: 0, globals: 0, lastDate: '' });
+  const [stats, setStats] = useState({ nodes: 0, lastDate: '' });
   const [loading, setLoading] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -82,27 +103,34 @@ function ProductionCanvas() {
           return { ...base, type: 'custom', data: { ...n, label: n.nodeName }, className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit ${getNodeStyle(n.messageType, n.nodeName === '預設回覆')}` };
         });
 
+        const flowEdges = (data.edges || []).map((e: any) => ({
+          id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+          animated: true, style: { stroke: '#38bdf8', strokeWidth: 3 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#38bdf8' }
+        }));
+
         setNodes(flowNodes);
-        setEdges((data.edges || []).map((e: any) => ({ id: e.id, source: e.source, target: e.target, animated: true, style: { stroke: '#f43f5e', strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: '#f43f5e' } })));
-        setStats({ nodes: flowNodes.length, globals: (data.nodes || []).filter((n:any) => n.isGlobal).length, lastDate: data.publishedAt?.toDate ? data.publishedAt.toDate().toLocaleString() : '未知' });
+        setEdges(flowEdges);
+        setStats({ nodes: flowNodes.length, lastDate: data.publishedAt?.toDate ? data.publishedAt.toDate().toLocaleString() : '未知' });
       }
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
-  if (loading) return <div className="h-full w-full flex items-center justify-center text-rose-500 animate-pulse font-black italic tracking-widest">PROJECTING PRODUCTION LIVE...</div>;
+  if (loading) return <div className="h-full w-full flex items-center justify-center text-rose-500 font-black">PROJECTING PRODUCTION LIVE...</div>;
 
   return (
     <div className="flex flex-col h-full bg-[#020617]">
-      <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="bg-rose-500 p-2 rounded-xl shadow-[0_0_20px_rgba(244,63,94,0.3)]"><ShieldCheck className="text-white" size={24} /></div>
-          <div><h1 className="text-xl font-black text-white italic tracking-tighter uppercase">Production Live View</h1><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">線上環境真實狀態 (唯讀面版模式)</p></div>
+      <CustomStyles />
+      {/* 🚀 佈局修正：縮減 Header 高度，確保不遮擋系統登入資訊 */}
+      <div className="px-6 py-4 bg-slate-900/80 border-b border-white/5 flex items-center justify-between z-30">
+        <div className="flex items-center gap-3">
+          <div className="bg-rose-500 p-1.5 rounded-lg"><ShieldCheck className="text-white" size={20} /></div>
+          <div><h1 className="text-lg font-black text-white italic tracking-tighter uppercase leading-none">Production Live</h1><p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">線上真實狀態 (唯讀)</p></div>
         </div>
-        <div className="flex gap-8">
-          <div className="text-right"><div className="text-[9px] font-black text-slate-500 uppercase">線上節點</div><div className="text-xl font-black text-white">{stats.nodes}</div></div>
-          <div className="text-right border-l border-white/10 pl-8"><div className="text-[9px] font-black text-rose-500 uppercase">最後發布時間</div><div className="text-xl font-black text-white">{stats.lastDate}</div></div>
+        <div className="flex gap-6">
+          <div className="text-right"><div className="text-[8px] font-black text-slate-500 uppercase">節點</div><div className="text-sm font-black text-white">{stats.nodes}</div></div>
+          <div className="text-right border-l border-white/10 pl-6"><div className="text-[8px] font-black text-rose-500 uppercase">更新時間</div><div className="text-sm font-black text-white">{stats.lastDate}</div></div>
         </div>
       </div>
 
@@ -112,12 +140,10 @@ function ProductionCanvas() {
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#334155" />
             <Controls />
           </ReactFlow>
-          <div className="absolute bottom-6 right-6 px-4 py-2 bg-rose-600/20 border border-rose-500/50 rounded-full backdrop-blur-md flex items-center gap-2 z-10"><AlertTriangle size={14} className="text-rose-500 animate-pulse" /><span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Monitor Mode: Read-Only Panels</span></div>
+          <div className="absolute bottom-6 left-6 px-4 py-2 bg-rose-600/20 border border-rose-500/50 rounded-full backdrop-blur-md flex items-center gap-2 z-10"><AlertTriangle size={14} className="text-rose-500 animate-pulse" /><span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Live Monitoring</span></div>
         </div>
-
-        {/* 🚀 彈出唯讀面板 */}
         {selectedNodeId && (
-          <div className="w-[480px] h-full border-l border-white/10 z-50 animate-in slide-in-from-right relative">
+          <div className="w-[480px] h-full border-l border-white/10 z-50 animate-in slide-in-from-right">
              <NodeEditPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
           </div>
         )}
@@ -127,9 +153,5 @@ function ProductionCanvas() {
 }
 
 export default function ProductionViewer() {
-  return (
-    <div className="flex-1 h-full overflow-hidden">
-      <ReactFlowProvider><ProductionCanvas /></ReactFlowProvider>
-    </div>
-  );
+  return <div className="flex-1 h-full overflow-hidden"><ReactFlowProvider><ProductionCanvas /></ReactFlowProvider></div>;
 }
