@@ -19,14 +19,14 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 還原透明度，確保卡片疊在群組上能透出正確的深淺層次
+// 🚀 關鍵修正：將 /80 透明度全部移除，改用純實心 bg-xxx-950
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNode = ({ data, isConnectable }: any) => {
@@ -46,7 +46,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
+          <div key={index} className="relative bg-slate-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
@@ -72,8 +72,9 @@ const GroupNode = ({ data, selected }: NodeProps) => {
   );
 };
 
+// 🚀 關鍵修正：將 bg-indigo-950/90 的 /90 移除，改為實心
 const TimeRouterNode = ({ data, isConnectable }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
+  <div className="w-[200px] h-[90px] bg-indigo-950 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
     <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
@@ -108,9 +109,9 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           return { id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 }, data: { title: data.nodeName, customLabel: data.customLabel }, zIndex: -1 };
         }
         if (data.messageType === 'time_router') {
-          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, data: { nodeName: data.nodeName, config: data.config } };
+          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
-        return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword } };
+        return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword } };
       }));
     });
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
@@ -147,40 +148,44 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 核心發布邏輯修正：利用 JSON.stringify 原生特性剔除 undefined，絕不寫入 null
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      
-      const nodesToPublish = flowObject.nodes.map(n => ({
+      const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj));
+
+      const nodesToPublish = flowObject.nodes.map(n => sanitize({
         id: String(n.id),
         position: n.positionAbsolute || n.position || { x: 0, y: 0 },
         type: String(n.type || 'custom'),
         data: n.data || {},
-        width: n.width,
-        height: n.height,
-        style: n.style
+        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
+        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
+        messageType: String(n.data?.messageType || 'text'),
+        nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
+        customLabel: String(n.data?.customLabel || ""),
+        parentNode: null
       }));
 
-      const edgesToPublish = flowObject.edges.map(e => ({
-        id: String(e.id), source: String(e.source), target: String(e.target),
-        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
-        type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
-        style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
-      }));
-
-      // JSON 原生會把 value 為 undefined 的 key 整組刪掉，這樣 Firestore 就不會報錯
-      const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
-      const cleanEdges = JSON.parse(JSON.stringify(edgesToPublish));
-      const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
+      const edgesToPublish = flowObject.edges.map(e => {
+        const edgeObj: any = {
+            id: String(e.id), source: String(e.source), target: String(e.target),
+            type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+            style: e.style || { stroke: '#deff9a', strokeWidth: 2 }
+        };
+        if (e.sourceHandle) edgeObj.sourceHandle = String(e.sourceHandle);
+        if (e.targetHandle) edgeObj.targetHandle = String(e.targetHandle);
+        if (e.markerEnd) edgeObj.markerEnd = e.markerEnd;
+        if (e.markerStart) edgeObj.markerStart = e.markerStart;
+        return sanitize(edgeObj);
+      });
 
       await setDoc(doc(db, "botConfig", "production"), { 
-          nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
+          nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！");
+      alert("🚀 1:1 發布成功！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
