@@ -19,14 +19,14 @@ const CustomStyles = () => (
   `}} />
 );
 
-const getNodeStyle = (type: string, isStart: boolean) => {
+// 🚀 關鍵修正：實心背景色，解決透明度造成的顏色深淺不一
+export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
-  switch(type) {
-    case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-    case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-    case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-    default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
-  }
+  const t = type.toLowerCase().trim();
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNode = ({ data, isConnectable }: any) => {
@@ -92,6 +92,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
+  
+  // 🚀 關鍵還原：您的可命名存檔 Modal
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   
@@ -120,8 +124,14 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
-        // 🚀 保留原本的 smoothstep 曲線
-        return { id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: 'smoothstep', animated: true, style: { stroke: data.color || '#deff9a', strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } };
+        return { 
+            id: d.id, source: data.source, target: data.target, 
+            sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, 
+            type: 'smoothstep', // 🚀 強制還原平滑曲線
+            animated: true, 
+            style: { stroke: data.color || '#deff9a', strokeWidth: 2 }, 
+            markerEnd: { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } 
+        };
       }));
     });
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -141,7 +151,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 關鍵發布：清除 undefined 並打包絕對座標
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要發布到正式機嗎？")) return;
     setIsPublishing(true);
@@ -156,9 +165,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           data: cleanData,
           width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
           height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-          messageType: String(n.data?.messageType || 'text'),
-          nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
-          customLabel: String(n.data?.customLabel || ""),
           parentNode: null
         };
       });
@@ -167,7 +173,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
         targetHandle: e.targetHandle ? String(e.targetHandle) : null,
-        type: 'smoothstep', // 保留曲線設定
+        type: 'smoothstep', 
         color: String((e.style?.stroke as string) || '#deff9a')
       }));
 
@@ -179,12 +185,24 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
-  const handleSaveDraft = async () => {
+  const handleOpenSaveModal = () => {
+    setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`);
+    setShowSaveModal(true);
+  };
+
+  const executeSaveDraft = async () => {
+    if (!saveName.trim()) return;
     setIsSavingDraft(true);
     try {
-      const nS = await getDocs(collection(db, "flowRules"));
-      const eS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "flowSnapshots"), { name: `版本_${new Date().toLocaleString()}`, nodes: nS.docs.map(d => ({ id: d.id, ...d.data() })), edges: eS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
+      const nodeS = await getDocs(collection(db, "flowRules"));
+      const edgeS = await getDocs(collection(db, "flowEdges"));
+      await addDoc(collection(db, "flowSnapshots"), { 
+          name: saveName.trim(), 
+          nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), 
+          edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), 
+          createdAt: serverTimestamp() 
+      });
+      setShowSaveModal(false);
       alert("✅ 草稿儲存成功");
     } catch (e) { alert("儲存失敗"); } finally { setIsSavingDraft(false); }
   };
@@ -192,6 +210,20 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   return (
     <>
       <CustomStyles />
+      
+      {showSaveModal && (
+        <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
+            <div><h3 className="font-black text-[#deff9a] text-lg flex items-center gap-2"><Save size={18} /> 儲存版本</h3><p className="text-xs text-slate-400">輸入存檔名稱：</p></div>
+            <input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="w-full bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-[#deff9a]" autoFocus />
+            <div className="flex gap-3">
+              <button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-800 rounded-xl text-xs font-bold text-slate-300">取消</button>
+              <button onClick={executeSaveDraft} disabled={isSavingDraft} className="flex-1 py-3 bg-[#deff9a] text-black font-black rounded-xl text-xs">{isSavingDraft ? "處理中" : "儲存"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute left-8 top-8 z-10 flex flex-col gap-3">
           <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl font-black flex gap-2 hover:scale-105 active:scale-95 transition-all shadow-2xl border-2 border-rose-400"><Rocket size={20} /> {isPublishing ? '發布中' : '立即發布正式機'}</button>
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新節點", messageType: "text", position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Plus size={20} /> ADD NODE</button>
@@ -199,7 +231,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-1" />
-          <button onClick={handleSaveDraft} disabled={isSavingDraft} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> {isSavingDraft ? '儲存中...' : '儲存草稿版本'}</button>
+          <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
 
@@ -219,7 +251,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         connectionMode={ConnectionMode.Loose}
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
-        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
+        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
