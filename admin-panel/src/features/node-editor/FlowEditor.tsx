@@ -19,10 +19,8 @@ const CustomNode = ({ data, isConnectable }: any) => {
 
   return (
     <div className="w-full h-full relative flex flex-col justify-between p-2">
-      {/* 唯一的輸入點 (接收路徑) */}
       <Handle type="target" position={Position.Top} id="top_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       
-      {/* 節點標頭 */}
       <div className="flex flex-col items-center mb-2 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && (
@@ -39,15 +37,14 @@ const CustomNode = ({ data, isConnectable }: any) => {
         </div>
       </div>
 
-      {/* 動態渲染按鈕選項與專屬輸出點 */}
       <div className="flex flex-col gap-1.5 w-full mt-auto">
-        {options.map((opt: any) => (
+        {options.map((opt: any, index: number) => (
           <div key={opt.id} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle 
               type="source" 
               position={Position.Right} 
-              id={`opt_${opt.id}`} // 🚀 選項專屬的 ID
+              id={`opt_${index}`}
               isConnectable={isConnectable} 
               className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" 
             />
@@ -55,7 +52,6 @@ const CustomNode = ({ data, isConnectable }: any) => {
         ))}
       </div>
 
-      {/* 如果沒有設定任何選項，保留一個預設的底部輸出點 */}
       {options.length === 0 && (
          <Handle type="source" position={Position.Bottom} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       )}
@@ -133,14 +129,14 @@ function FlowContent() {
         if (data.messageType === 'time_router') {
           return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
-        // 動態高度計算：基礎高度 80 + 每個選項約 32px
-        const optionCount = data.options?.length || 0;
+        
+        const optionCount = data.options?.length || data.buttons?.length || 0;
         const dynamicHeight = optionCount > 0 ? 70 + (optionCount * 32) : 80;
 
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
           parentNode: data.parentNode || undefined,
-          data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.options, globalKeyword: data.globalKeyword },
+          data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
           className: `border-2 shadow-2xl rounded-2xl w-[200px] transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`,
           style: { height: dynamicHeight }
         };
@@ -153,7 +149,7 @@ function FlowContent() {
         let edgeColor = data.color || '#deff9a';
         if (data.sourceHandle === 'business') edgeColor = '#34d399';
         if (data.sourceHandle === 'off-hours') edgeColor = '#fb7185';
-        if (data.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa'; // 選項連線用藍色區隔
+        if (data.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
 
         const markerConfig = { type: MarkerType.ArrowClosed, color: edgeColor };
         return { 
@@ -209,10 +205,10 @@ function FlowContent() {
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
-        onEdgeUpdate={useCallback(async (o, n) => { try { await updateDoc(doc(db, "flowEdges", o.id), { source: n.source, target: n.target, sourceHandle: n.sourceHandle, targetHandle: n.targetHandle }); } catch(e){} }, [])}
+        onEdgeUpdate={useCallback(async (o: Edge, n: Connection) => { try { await updateDoc(doc(db, "flowEdges", o.id), { source: n.source, target: n.target, sourceHandle: n.sourceHandle, targetHandle: n.targetHandle }); } catch(e){} }, [])}
         onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', createdAt: serverTimestamp() }); }, [])} 
-        onNodesDelete={useCallback(async (dn) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
-        onEdgesDelete={useCallback(async (de) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
+        onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
+        onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
         onNodeDragStop={async (_, n) => { 
             if (n.type === 'group') { await updateDoc(doc(db, "flowRules", n.id), { position: n.position, width: n.width || n.style?.width, height: n.height || n.style?.height }); } 
