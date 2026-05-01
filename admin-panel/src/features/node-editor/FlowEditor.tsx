@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
-  NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
+  NodeResizer, useReactFlow, Position, Handle, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
@@ -15,9 +15,11 @@ const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } }
     .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
+    .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
   `}} />
 );
 
+// 🚀 還原 /80 透明度，確保群組內外的深淺層次感
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -146,24 +148,23 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 關鍵發布修正：顯式過濾 undefined 並保留所有箭頭與風格屬性
   const executePublish = async () => {
-    if (!window.confirm("⚠️ 確定要發布到正式機嗎？")) return;
+    if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      const nodesToPublish = flowObject.nodes.map(n => {
-        const cleanData = JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v));
-        return {
-          id: String(n.id),
-          position: n.positionAbsolute || n.position || { x: 0, y: 0 },
-          type: String(n.type || 'custom'),
-          data: cleanData,
-          width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
-          height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-          parentNode: null
-        };
-      });
+      const nodesToPublish = flowObject.nodes.map(n => ({
+        id: String(n.id),
+        position: n.positionAbsolute || n.position || { x: 0, y: 0 },
+        type: String(n.type || 'custom'),
+        data: JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v)),
+        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
+        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
+        messageType: String(n.data?.messageType || 'text'),
+        nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
+        customLabel: String(n.data?.customLabel || ""),
+        parentNode: null
+      }));
 
       const edgesToPublish = flowObject.edges.map(e => ({
         id: String(e.id), source: String(e.source), target: String(e.target),
@@ -176,10 +177,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         markerStart: JSON.parse(JSON.stringify(e.markerStart || null))
       }));
 
-      await setDoc(doc(db, "botConfig", "production"), { 
-        nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
-        publishedAt: serverTimestamp(), publisher: "Roger" 
-      });
+      await setDoc(doc(db, "botConfig", "production"), { nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport, publishedAt: serverTimestamp(), publisher: "Roger" });
       alert("🚀 1:1 發布成功！連線風格與箭頭已同步。");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
@@ -189,7 +187,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       <CustomStyles />
       {showSaveModal && (
         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl">
             <div><h3 className="font-black text-[#deff9a] text-lg flex items-center gap-2"><Save size={18} /> 儲存版本</h3><p className="text-xs text-slate-400">輸入存檔名稱：</p></div>
             <input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="w-full bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-[#deff9a]" autoFocus />
             <div className="flex gap-3">
@@ -208,7 +206,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
-
       <div className="absolute left-8 top-8 z-10 flex flex-col gap-3">
           <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl font-black flex gap-2 hover:scale-105 active:scale-95 transition-all shadow-2xl border-2 border-rose-400"><Rocket size={20} /> {isPublishing ? '發布中' : '立即發布正式機'}</button>
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新節點", messageType: "text", position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Plus size={20} /> ADD NODE</button>
@@ -219,7 +216,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => { setSaveName(`版本_${new Date().toISOString().slice(0, 10)}`); setShowSaveModal(true); }} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
-
       {showSnapshots && (
         <div className="absolute left-8 top-[480px] z-50 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
           <div className="p-3 bg-slate-800 border-b flex justify-between items-center"><span className="text-[10px] font-black text-slate-400">歷史紀錄</span><button onClick={() => setShowSnapshots(false)}><X size={14}/></button></div>
@@ -228,30 +224,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
-
-      <ReactFlow 
-        nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
-        defaultViewport={initialViewport.current}
-        snapToGrid={snapToGrid} snapGrid={[20, 20]}
-        connectionMode={ConnectionMode.Loose}
-        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
-        onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
-        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
-        onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
-        onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
-        onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
-        onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
-        onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
-        onNodeDragStop={async (_, n) => { 
-            const payload: any = { position: n.position };
-            if (n.type === 'group') { payload.width = n.width; payload.height = n.height; }
-            await updateDoc(doc(db, "flowRules", n.id), payload); 
-        }}
-      >
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} defaultViewport={initialViewport.current} snapToGrid={snapToGrid} snapGrid={[20, 20]} connectionMode={ConnectionMode.Loose} onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])} onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} onNodeDragStop={async (_, n) => { const p: any = { position: n.position }; if (n.type === 'group') { p.width = n.width; p.height = n.height; } await updateDoc(doc(db, "flowRules", n.id), p); }}>
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
-
       {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
       {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
