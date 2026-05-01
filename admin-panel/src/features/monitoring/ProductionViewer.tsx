@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
   Background, BackgroundVariant, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow, Controls
-} from 'reactflow';
+} from 'reactflow'; 
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
