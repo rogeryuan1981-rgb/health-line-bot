@@ -91,29 +91,27 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
+        // 🚀 完全使用您在編輯器存入的 data，不亂覆蓋
         const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => {
-          const base: any = { id: n.id, position: n.position, type: n.type, data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel }, draggable: false };
+          const base: any = { id: n.id, position: n.position, type: n.type, data: n.data || {}, draggable: false };
           if (n.type === 'group') base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, borderRadius: '32px' };
           return base;
         });
         setNodes(safeNodes);
         
-        // 🚀 關鍵防禦機制：如果舊資料有 null 的 markerEnd，當場拔除，絕對不讓 React Flow 當機
+        // 🚨 終極防禦：拔除舊資料的 null 毒瘤，防止 Object.keys 報錯
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
             const edgeObj: any = {
-                id: e.id,
-                source: e.source,
-                target: e.target,
-                type: e.type || 'smoothstep',
-                animated: e.animated !== false,
+                id: e.id, source: e.source, target: e.target,
+                type: e.type || 'smoothstep', animated: e.animated !== false,
                 style: e.style || { stroke: '#deff9a', strokeWidth: 2 }
             };
             if (e.sourceHandle) edgeObj.sourceHandle = e.sourceHandle;
             if (e.targetHandle) edgeObj.targetHandle = e.targetHandle;
             
-            // 嚴格阻擋 null，只接受真實物件
-            if (e.markerStart && e.markerStart !== null) edgeObj.markerStart = e.markerStart;
-            if (e.markerEnd && e.markerEnd !== null) edgeObj.markerEnd = e.markerEnd;
+            // 嚴格確保只加入真實的物件，遇到 null 直接忽略
+            if (e.markerStart && typeof e.markerStart === 'object') edgeObj.markerStart = e.markerStart;
+            if (e.markerEnd && typeof e.markerEnd === 'object') edgeObj.markerEnd = e.markerEnd;
             
             return edgeObj;
         });
