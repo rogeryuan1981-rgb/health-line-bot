@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
-  NodeResizer, useReactFlow, Position, Handle, Connection, MarkerType
+  NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
@@ -19,7 +19,6 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 還原 /80 透明度，確保群組內外的深淺層次感
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -36,7 +35,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
-        {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
+        {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
@@ -126,7 +125,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, 
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }, 
-            markerEnd: data.arrowDirection === 'none' ? undefined : (data.arrowDirection === 'backward' ? undefined : { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' }),
+            markerEnd: (data.arrowDirection === 'none' || data.arrowDirection === 'backward') ? undefined : { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' },
             markerStart: (data.arrowDirection === 'backward' || data.arrowDirection === 'dual') ? { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } : undefined
         };
       }));
@@ -173,12 +172,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         type: String(e.type || 'smoothstep'),
         animated: Boolean(e.animated),
         style: JSON.parse(JSON.stringify(e.style || {})),
-        markerEnd: JSON.parse(JSON.stringify(e.markerEnd || null)),
-        markerStart: JSON.parse(JSON.stringify(e.markerStart || null))
+        markerEnd: e.markerEnd ? JSON.parse(JSON.stringify(e.markerEnd)) : null,
+        markerStart: e.markerStart ? JSON.parse(JSON.stringify(e.markerStart)) : null
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport, publishedAt: serverTimestamp(), publisher: "Roger" });
-      alert("🚀 1:1 發布成功！連線風格與箭頭已同步。");
+      alert("🚀 1:1 發布成功！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -224,7 +223,21 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} defaultViewport={initialViewport.current} snapToGrid={snapToGrid} snapGrid={[20, 20]} connectionMode={ConnectionMode.Loose} onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])} onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} onNodeDragStop={async (_, n) => { const p: any = { position: n.position }; if (n.type === 'group') { p.width = n.width; p.height = n.height; } await updateDoc(doc(db, "flowRules", n.id), p); }}>
+      <ReactFlow 
+        nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
+        defaultViewport={initialViewport.current}
+        snapToGrid={snapToGrid} snapGrid={[20, 20]}
+        connectionMode={ConnectionMode.Loose}
+        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
+        onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
+        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
+        onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
+        onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
+        onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
+        onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
+        onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
+        onNodeDragStop={async (_, n) => { const p: any = { position: n.position }; if (n.type === 'group') { p.width = n.width; p.height = n.height; } await updateDoc(doc(db, "flowRules", n.id), p); }}
+      >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
