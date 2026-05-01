@@ -16,13 +16,14 @@ const GlobalProdStyles = () => (
   `}} />
 );
 
+// 🚀 關鍵修正：全面改為實心背景 bg-xxx-950，杜絕透明度造成的色差
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
@@ -42,7 +43,7 @@ const CustomNodeProd = ({ data }: any) => {
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
+          <div key={index} className="relative bg-slate-950 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
@@ -68,7 +69,7 @@ const GroupNodeProd = ({ data }: any) => {
 };
 
 const TimeRouterNodeProd = ({ data }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
+  <div className="w-[200px] h-[90px] bg-indigo-950 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
     <div className="font-black text-sm flex items-center justify-center gap-2 mb-1 w-full"><Clock size={16} className="text-indigo-400" />{data?.nodeName || 'TimeRouter'}</div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data?.config?.startTime || '09:00'} - {data?.config?.endTime || '18:00'}</div>
@@ -91,7 +92,6 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
-        // 🚀 完全使用您在編輯器存入的 data，不亂覆蓋
         const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => {
           const base: any = { id: n.id, position: n.position, type: n.type, data: n.data || {}, draggable: false };
           if (n.type === 'group') base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, borderRadius: '32px' };
