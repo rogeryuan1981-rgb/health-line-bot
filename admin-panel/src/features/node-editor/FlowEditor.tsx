@@ -12,7 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 視覺特效與動態連線定義
+// 🚀 視覺特效定義
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -48,10 +48,10 @@ const CustomNode = ({ data, isConnectable }: any) => {
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-      <div className="flex flex-col items-center mb-3 mt-1">
+      <div className="flex flex-col items-center mb-3 mt-1 text-white">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight text-white">
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
@@ -164,7 +164,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 路徑高亮邏輯 (修復 TS6133)
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
@@ -178,7 +177,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
-            return { ...e, animated: isEdgeVisited ? true : (e.animated), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
+            return { ...e, className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
         }));
     }
   }, [activePath]); 
@@ -192,50 +191,60 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 關鍵修正：解決 Firebase 不支援 undefined 的問題，並同步視角與絕對座標
+  // 🚀 關鍵發布區域：毀滅式清洗所有 undefined 屬性
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
     
     setIsPublishing(true); 
     try { 
-      // 🚀 清洗資料：將 undefined 轉為 null
-      const currentNodes = getNodes().map(n => ({
-        id: n.id,
-        position: n.positionAbsolute || n.position || { x: 0, y: 0 }, 
-        type: n.type || 'custom',
-        data: n.data || {},
-        parentNode: n.parentNode || null, // 關鍵：轉 undefined 為 null
-        width: n.width || n.style?.width || null,
-        height: n.height || n.style?.height || null,
-        messageType: n.data.messageType || 'text',
-        nodeName: n.data.nodeName || n.data.label || 'Node',
-        customLabel: n.data.customLabel || ""
-      }));
+      // 🚀 手動映射屬性，絕不傳入整顆物件，確保沒有 undefined 或 React 元件
+      const rawNodes = getNodes();
+      const nodesToPublish = rawNodes.map(n => {
+        const cleaned: any = {
+          id: n.id,
+          position: { 
+            x: (n.positionAbsolute?.x !== undefined) ? n.positionAbsolute.x : n.position.x, 
+            y: (n.positionAbsolute?.y !== undefined) ? n.positionAbsolute.y : n.position.y 
+          },
+          type: n.type || 'custom',
+          data: JSON.parse(JSON.stringify(n.data)), // 毀滅式清洗 data 內部的所有 undefined
+          parentNode: n.parentNode || null,
+          width: n.width || (n.style?.width ? parseInt(n.style.width as string) : null),
+          height: n.height || (n.style?.height ? parseInt(n.style.height as string) : null),
+          messageType: n.data?.messageType || 'text',
+          nodeName: n.data?.nodeName || n.data?.label || 'Node'
+        };
+        // 額外處理 group_box 的標籤
+        if (n.data?.customLabel) cleaned.customLabel = n.data.customLabel;
+        return cleaned;
+      });
 
-      const currentEdges = getEdges().map(e => ({
+      const rawEdges = getEdges();
+      const edgesToPublish = rawEdges.map(e => ({
         id: e.id,
         source: e.source,
         target: e.target,
         sourceHandle: e.sourceHandle || null,
         targetHandle: e.targetHandle || null,
-        color: e.style?.stroke || '#deff9a'
+        color: (e.style?.stroke as string) || '#deff9a'
       }));
 
-      const viewport = getViewport();
+      const v = getViewport();
+      const viewportToPublish = { x: v.x, y: v.y, zoom: v.zoom };
 
       await setDoc(doc(db, "botConfig", "production"), { 
-        nodes: currentNodes, 
-        edges: currentEdges, 
-        viewport: viewport, 
+        nodes: nodesToPublish, 
+        edges: edgesToPublish, 
+        viewport: viewportToPublish, 
         publishedAt: serverTimestamp(),
         publisher: "Roger"
       }); 
 
-      alert("🚀 發布成功！監測畫面現在已 1:1 還原設定值！"); 
-    } catch (e) { 
+      alert("🚀 發布成功！監測畫面現在已 1:1 還原！"); 
+    } catch (e: any) { 
       console.error("❌ 發布失敗詳細原因:", e);
-      alert("發布失敗，請確認後台權限設定"); 
+      alert(`發布失敗：${e.message}`); 
     } finally { 
       setIsPublishing(false); 
     } 
