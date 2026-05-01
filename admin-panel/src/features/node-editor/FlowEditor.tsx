@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // 🚀 重新引入 useRef
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -12,7 +12,6 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 修正點：移除了 @keyframes 裡的 transform: scale()，避免覆蓋 React Flow 的座標系統
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -39,23 +38,15 @@ const CustomStyles = () => (
 const CustomNode = ({ data, isConnectable }: any) => {
   const options = data.options || [];
   const isStart = data.nodeName === '預設回覆';
-
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-      
       <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
-        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900" title={`全域關鍵字`}><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
-          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
-          {data.label}
-        </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>
-          {data.messageType}
-        </div>
+        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">{data.label}</div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>{data.messageType}</div>
       </div>
-
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={opt.id || index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
@@ -106,7 +97,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [saveName, setSaveName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  
   const [pendingSchedule, setPendingSchedule] = useState<any>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -114,6 +104,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [isScheduling, setIsScheduling] = useState(false);
   
   const { getViewport, setCenter } = useReactFlow(); 
+  // 🚀 關鍵：用來追蹤路徑長度的變化
+  const prevPathLengthRef = useRef(0);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -146,7 +138,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         };
       }));
     });
-
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
@@ -154,103 +145,68 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         if (data.sourceHandle === 'business') edgeColor = '#34d399';
         if (data.sourceHandle === 'off-hours') edgeColor = '#fb7185';
         if (data.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
-
-        return { 
-          id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: data.pathType || 'smoothstep', animated: data.dashed !== false, 
-          style: { stroke: edgeColor, strokeWidth: data.strokeWidth || 2, strokeDasharray: data.dashed ? '5 5' : '' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor }
-        };
+        return { id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: data.pathType || 'smoothstep', animated: data.dashed !== false, style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: data.dashed ? '5 5' : '' }, markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor } };
       }));
     });
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubSchedule = onSnapshot(query(collection(db, "scheduled_releases"), where("status", "==", "pending")), (snap) => {
       if (!snap.empty) setPendingSchedule({ id: snap.docs[0].id, ...snap.docs[0].data() }); else setPendingSchedule(null);
     });
-
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
+        const currentPathLength = activePath.nodes.length;
+        
         setNodes(nds => nds.map(n => {
             const cleanClass = (n.className || '').replace(/node-current-glow/g, '').replace(/node-visited/g, '').trim();
             const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
             const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
-
             if (isCurrent) return { ...n, className: `${cleanClass} node-current-glow` };
             if (isVisited) return { ...n, className: `${cleanClass} node-visited` };
             return { ...n, className: cleanClass };
         }));
-
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
-            return {
-                ...e,
-                animated: isEdgeVisited ? true : (e.data?.dashed !== false),
-                className: isEdgeVisited ? 'edge-visited' : '',
-                zIndex: isEdgeVisited ? 1000 : 0,
-            };
+            return { ...e, animated: isEdgeVisited ? true : (e.data?.dashed !== false), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
         }));
 
-        if (activePath.nodes.length > 1) {
+        // 🚀 關鍵邏輯：只有當路徑變長 (使用者操作前進) 且長度大於 1 時才運鏡
+        if (currentPathLength > prevPathLengthRef.current && currentPathLength > 1) {
             const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
             const activeNode = nodes.find(n => n.id === activeNodeId);
             if (activeNode) {
                 setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
             }
         }
+        // 更新 Ref 紀錄
+        prevPathLengthRef.current = currentPathLength;
+    } else {
+        // 重置時歸零
+        prevPathLengthRef.current = 0;
     }
-  }, [activePath, setCenter]); 
+  }, [activePath, setCenter, nodes]); 
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
   const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
   const addTimeRouterNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
-
   const handleOpenSaveModal = () => { setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`); setShowSaveModal(true); };
-  
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
-
-  const executeSchedulePublish = async () => {
-    if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; }
-    const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`);
-    if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; }
-    setIsScheduling(true);
-    try {
-      const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() });
-      setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`);
-    } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); }
-  };
-
-  const cancelSchedule = async () => {
-    if (!pendingSchedule) return;
-    if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return;
-    try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); }
-  };
-
-  const executePublish = async () => {
-    if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return;
-    if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return;
-    setIsPublishing(true);
-    try {
-      const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges"));
-      await setDoc(doc(db, "botConfig", "production"), { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), publishedAt: serverTimestamp() });
-      alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！");
-    } catch (e) { alert("發布失敗，請重試"); } finally { setIsPublishing(false); }
-  };
+  const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
+  const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
+  const executePublish = async () => { if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; setIsPublishing(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await setDoc(doc(db, "botConfig", "production"), { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), publishedAt: serverTimestamp() }); alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！"); } catch (e) { alert("發布失敗，請重試"); } finally { setIsPublishing(false); } };
 
   return (
     <>
       <CustomStyles />
-
       {pendingSchedule && (
         <div className="absolute top-0 left-0 w-full bg-indigo-600 text-white text-xs font-bold py-2.5 flex justify-center items-center gap-6 z-[60] shadow-lg animate-in slide-in-from-top">
             <span className="flex items-center gap-2"><Clock size={14} className="animate-pulse"/> 系統已排程於 <span className="text-[#deff9a] text-sm tracking-wide">{pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}</span> 發布新版本</span>
             <button onClick={cancelSchedule} className="bg-slate-900/40 hover:bg-slate-900 px-4 py-1.5 rounded-lg text-[10px] transition-colors border border-white/20 flex items-center gap-1"><X size={12}/> 取消排程</button>
         </div>
       )}
-
       {showScheduleModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl animate-in zoom-in-95">
@@ -260,7 +216,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
-
       {showSaveModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
@@ -270,7 +225,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
-
       <div className={`absolute left-8 z-10 flex flex-col gap-3 transition-all duration-300 ${pendingSchedule ? 'top-16' : 'top-8'}`}>
           <button onClick={executePublish} disabled={isPublishing || isScheduling} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95"><Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> {isPublishing ? '發布中...' : '立即發布正式機'}</button>
           <button onClick={() => setShowScheduleModal(true)} disabled={isPublishing || isScheduling || pendingSchedule !== null} className={`text-white px-6 py-3 rounded-2xl font-black tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${pendingSchedule ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-400 shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-105 active:scale-95'} mb-2`}><CalendarClock size={20} /> {pendingSchedule ? '已有排程等候中' : '預定排程發布'}</button>
@@ -282,7 +236,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex justify-center gap-2 hover:bg-blue-500"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex justify-center gap-2 hover:bg-slate-700"><History size={14}/> 歷史紀錄</button>
       </div>
-
       {showSnapshots && (
           <div className={`absolute left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${pendingSchedule ? 'top-[480px]' : 'top-[440px]'}`}>
               <div className="p-4 bg-slate-800/50 border-b flex justify-between"><span className="text-[10px] font-black text-slate-400">SAVED VERSIONS</span><button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button></div>
@@ -291,7 +244,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
               </div>
           </div>
       )}
-
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
@@ -309,12 +261,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
                 else await updateDoc(doc(db, "flowRules", n.id), { parentNode: deleteField(), position: { x: absX, y: absY } });
             }
         }} 
-        connectionMode={ConnectionMode.Loose} snapToGrid={snapToGrid} snapGrid={[20, 20]} fitView
+        connectionMode={ConnectionMode.Loose} snapToGrid={snapToGrid} snapGrid={[20, 20]}
+        // 🚀 關鍵修正：移除了 fitView，防止自動歸心跳動
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
-
       <div className={`absolute right-0 top-0 h-full transition-all duration-500 z-50 ${activePanel ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
         {activePanel === 'node' && <NodeEditPanel nodeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
         {activePanel === 'edge' && <EdgeEditPanel edgeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
