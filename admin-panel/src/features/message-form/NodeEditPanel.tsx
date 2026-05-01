@@ -30,10 +30,13 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
     if (!nodeId) return;
     const fetch = async () => {
       let data: any = null;
+      
+      // 🚀 核心修復：正確解析正式機 (production) 的深層資料結構
       if (sourceCollection === "botConfig/production") {
           const prodSnap = await getDoc(doc(db, "botConfig", "production"));
           if (prodSnap.exists()) {
-              data = prodSnap.data().nodes.find((n: any) => n.id === nodeId);
+              const foundNode = prodSnap.data().nodes.find((n: any) => n.id === nodeId);
+              data = foundNode ? foundNode.data : null; // 這裡少寫了 .data 導致監測畫面變成空白！
           }
       } else {
           const snap = await getDoc(doc(db, sourceCollection, nodeId));
@@ -156,6 +159,26 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
 
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col p-6 space-y-6">
           <div className="space-y-6">
+              
+              {/* 🚀 核心修復：把被我不小心刪掉的「類別選擇器」完整加回來 */}
+              {!isGroup && !isTimeRouter && (
+                <div className="space-y-2 mb-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">訊息類別</label>
+                  <div className="flex gap-1 bg-slate-900 p-1 rounded-xl">
+                    {['text', 'image', 'video', 'flex', 'carousel'].map(type => (
+                      <button
+                        key={type}
+                        disabled={isReadOnly}
+                        onClick={() => setNodeData({...nodeData, messageType: type})}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${nodeData.messageType === type ? 'bg-slate-700 text-[#deff9a] shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                      >
+                        {type === 'text' ? '文字' : type === 'image' ? '圖片' : type === 'video' ? '影片' : type === 'flex' ? 'Flex' : '輪播'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {!isGroup && (
                   <div className="flex gap-4">
                     <div className="flex-[2] space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">啟動關鍵字</label><input value={nodeData.nodeName || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" /></div>
@@ -186,6 +209,16 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
                         </div>
                     )}
                     {nodeData.messageType === 'image' && renderMultiImagePicker()}
+                    
+                    {/* 🚀 核心修復：被我不小心刪除的 Video (影片) 設定區塊加回來了 */}
+                    {nodeData.messageType === 'video' && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">影片網址</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib==='fVid'?'null':'fVid')} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div>
+                            <input value={nodeData.videoUrl || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, videoUrl: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" />
+                            {activeLib==='fVid' && renderLibraryDropdown((url)=>setNodeData({...nodeData, videoUrl:url}))}
+                        </div>
+                    )}
+
                     {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
                         <div className="space-y-4">
                             <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型</button></div>
