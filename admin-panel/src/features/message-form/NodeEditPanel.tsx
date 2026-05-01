@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy, ChevronDown, ChevronUp, Globe } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy, ChevronDown, ChevronUp, Globe, Clock, CalendarDays, AlertTriangle } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -11,11 +11,16 @@ const EMOJI_LIST = [
   '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','🔔','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
 ];
 
+const WEEKDAYS = [
+    { id: 1, label: '一' }, { id: 2, label: '二' }, { id: 3, label: '三' },
+    { id: 4, label: '四' }, { id: 5, label: '五' }, { id: 6, label: '六' }, { id: 0, label: '日' }
+];
+
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
   const [nodeData, setNodeData] = useState<any>({
     nodeName: "", globalKeyword: "", customLabel: "", messageType: 'text', cardSize: 'md', 
     btnStyle: 'primary', textContent: "", imageUrl: "", imageUrls: [], videoUrl: "", fileUrl: "", 
-    buttons: [], cards: []
+    buttons: [], cards: [], config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }
   });
   
   const [library, setLibrary] = useState<any[]>([]);
@@ -31,7 +36,14 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     if (!nodeId) return;
     const fetch = async () => {
       const snap = await getDoc(doc(db, "flowRules", nodeId));
-      if (snap.exists()) setNodeData(snap.data());
+      if (snap.exists()) {
+          const data = snap.data();
+          // 若是時間節點但缺乏設定，給予預設值防呆
+          if (data.messageType === 'time_router' && !data.config) {
+              data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
+          }
+          setNodeData(data);
+      }
       const libSnap = await getDocs(collection(db, "resources"));
       setLibrary(libSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     };
@@ -42,15 +54,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     if (!nodeId) return;
     setIsSaving(true);
     
-    // 1. 先儲存目前的節點資料
     const payload = { ...nodeData, updatedAt: serverTimestamp() };
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
 
-    // ==========================================
-    // 🚀 自動連線與防呆邏輯 (升級：支援動態連接點)
-    // ==========================================
-    if (nodeData.buttons && nodeData.buttons.length > 0) {
+    if (nodeData.buttons && nodeData.buttons.length > 0 && nodeData.messageType !== 'time_router') {
       try {
         const rulesSnap = await getDocs(collection(db, "flowRules"));
         const edgesSnap = await getDocs(collection(db, "flowEdges"));
@@ -58,7 +66,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const allEdges: any[] = edgesSnap.docs.map(d => d.data());
 
-        // 使用 entries() 取得按鈕的 Index，用來對應 opt_0, opt_1 等輸出點
         for (const [index, btn] of nodeData.buttons.entries()) {
           const targetKeyword = btn.target?.trim();
           
@@ -76,23 +83,14 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             }
 
             const targetNodeId = matchedNodes[0].id;
-            const dynamicSourceHandle = `opt_${index}`; // 🚀 指派專屬的連接點 ID
+            const dynamicSourceHandle = `opt_${index}`;
 
-            // 檢查是否已經有相同的連線
             const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId && e.sourceHandle === dynamicSourceHandle);
 
             if (!edgeExists) {
               await addDoc(collection(db, "flowEdges"), {
-                source: nodeId,
-                target: targetNodeId,
-                sourceHandle: dynamicSourceHandle, // 🚀 綁定到該選項專屬的綠點
-                targetHandle: 'left',
-                color: '#60a5fa', // 改用藍色標示這是按鈕分支連線
-                strokeWidth: 2,
-                dashed: true,
-                arrowDirection: 'forward',
-                pathType: 'smoothstep',
-                createdAt: serverTimestamp()
+                source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', // 配合左進右出
+                color: '#60a5fa', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp()
               });
             }
           }
@@ -101,7 +99,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         console.error("自動連線處理失敗", error);
       }
     }
-    // ==========================================
 
     setIsSaving(false);
     alert("✅ 配置已儲存！");
@@ -113,10 +110,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     const snap = await getDoc(doc(db, "flowRules", nodeId));
     const currentPos = snap.exists() ? snap.data().position : { x: 100, y: 100 };
     const payload = { 
-        ...nodeData, 
-        nodeName: `${nodeData.nodeName}_複本`,
-        position: { x: currentPos.x + 40, y: currentPos.y + 40 },
-        updatedAt: serverTimestamp() 
+        ...nodeData, nodeName: `${nodeData.nodeName}_複本`,
+        position: { x: currentPos.x + 40, y: currentPos.y + 40 }, updatedAt: serverTimestamp() 
     };
     await addDoc(collection(db, "flowRules"), payload);
     setIsSaving(false);
@@ -127,13 +122,10 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     const filteredLib = library.filter(item => {
         let matchType = true;
         if (libFilter !== 'all') {
-          const t = (item.type || '').toLowerCase();
-          const u = (item.url || '').toLowerCase();
+          const t = (item.type || '').toLowerCase(); const u = (item.url || '').toLowerCase();
           const isVideo = t === 'video' || u.includes('youtube') || u.endsWith('.mp4');
           const isFile = t === 'file' || u.endsWith('.pdf');
-          if (libFilter === 'video') matchType = isVideo;
-          else if (libFilter === 'file') matchType = isFile;
-          else if (libFilter === 'image') matchType = !isVideo && !isFile;
+          if (libFilter === 'video') matchType = isVideo; else if (libFilter === 'file') matchType = isFile; else if (libFilter === 'image') matchType = !isVideo && !isFile;
         }
         return (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) && matchType;
     });
@@ -191,18 +183,20 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   if (!nodeId) return null;
 
   const isGroup = nodeData.messageType === 'group_box';
+  const isTimeRouter = nodeData.messageType === 'time_router';
 
   return (
     <div className="w-[480px] h-full bg-[#1e293b] border-l border-white/10 flex flex-col shadow-2xl absolute right-0 top-0 z-30 text-white font-sans">
       <div className="p-5 border-b border-white/10 flex justify-between items-center bg-slate-900/80">
         <h3 className="font-black text-sm tracking-tighter italic text-[#deff9a]">
-            {isGroup ? 'GROUP SETTINGS' : 'COMMAND CENTER'}
+            {isGroup ? 'GROUP SETTINGS' : isTimeRouter ? 'TIME ROUTER SETTINGS' : 'COMMAND CENTER'}
         </h3>
         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors"><X size={20}/></button>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col p-6 space-y-6">
-          {isGroup ? (
+          {/* 群組區塊設定 */}
+          {isGroup && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                 <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">區塊標題 (Title)</label>
@@ -217,24 +211,76 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             { id: '已完成', color: 'bg-emerald-600' }
                         ].map(status => (
                             <button 
-                                key={status.id}
-                                onClick={() => setNodeData({...nodeData, customLabel: status.id})}
+                                key={status.id} onClick={() => setNodeData({...nodeData, customLabel: status.id})}
                                 className={`py-3 rounded-xl text-[10px] font-black border transition-all ${nodeData.customLabel === status.id ? 'border-white bg-slate-700 shadow-lg' : 'border-transparent bg-slate-900 text-slate-500'}`}
                             >
-                                <div className={`w-2 h-2 rounded-full inline-block mr-2 ${status.color}`}></div>
-                                {status.id}
+                                <div className={`w-2 h-2 rounded-full inline-block mr-2 ${status.color}`}></div>{status.id}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
-          ) : (
+          )}
+
+          {/* 時間分流節點專屬設定 */}
+          {isTimeRouter && (
+            <div className="space-y-6 animate-in fade-in">
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">分流節點名稱</label>
+                    <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 上下班時間判定" />
+                </div>
+
+                <div className="space-y-5 bg-indigo-950/20 p-5 rounded-2xl border border-indigo-500/20">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1"><Clock size={14}/> 營業時段 (UTC+8 台灣時間)</label>
+                        <div className="flex items-center gap-3">
+                            <input type="time" value={nodeData.config?.startTime || "09:00"} onChange={e => setNodeData({...nodeData, config: {...nodeData.config, startTime: e.target.value}})} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
+                            <span className="text-slate-500 font-black">至</span>
+                            <input type="time" value={nodeData.config?.endTime || "18:00"} onChange={e => setNodeData({...nodeData, config: {...nodeData.config, endTime: e.target.value}})} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 pt-3 border-t border-indigo-500/20">
+                        <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1"><CalendarDays size={14}/> 營業日設定</label>
+                        <div className="flex justify-between gap-1">
+                            {WEEKDAYS.map(day => {
+                                const isSelected = nodeData.config?.workDays?.includes(day.id);
+                                return (
+                                    <button 
+                                        key={day.id}
+                                        onClick={() => {
+                                            const currentDays = nodeData.config?.workDays || [];
+                                            const newDays = isSelected ? currentDays.filter((d: number) => d !== day.id) : [...currentDays, day.id];
+                                            setNodeData({...nodeData, config: {...nodeData.config, workDays: newDays}});
+                                        }}
+                                        className={`w-10 h-10 rounded-full text-xs font-black transition-all ${isSelected ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-slate-900 text-slate-500 hover:bg-slate-800'}`}
+                                    >
+                                        {day.label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-2">
+                    <button 
+                        onClick={() => setNodeData({...nodeData, config: {...nodeData.config, forceOffHours: !nodeData.config?.forceOffHours}})}
+                        className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-sm transition-all border-2 ${nodeData.config?.forceOffHours ? 'bg-rose-600 border-rose-400 text-white shadow-[0_0_30px_rgba(225,29,72,0.3)] animate-pulse' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                    >
+                        <AlertTriangle size={18} />
+                        {nodeData.config?.forceOffHours ? "🚨 強制下班模式已開啟 (無視營業時間)" : "開啟緊急強制下班模式 (颱風假/休機)"}
+                    </button>
+                </div>
+            </div>
+          )}
+
+          {/* 一般訊息節點設定 */}
+          {!isGroup && !isTimeRouter && (
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex gap-4">
                   <div className="flex-[2] space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        啟動關鍵字
-                    </label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">啟動關鍵字</label>
                     <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 預設回覆" />
                   </div>
                   <div className="flex-1 space-y-1.5">
@@ -243,7 +289,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                   </div>
                 </div>
 
-                {/* 🔥 新增：全域任意門 */}
                 <div className="space-y-1.5 bg-indigo-950/30 p-3 rounded-xl border border-indigo-500/30">
                   <label className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-1"><Globe size={12}/> 全域關鍵字 (任意門)</label>
                   <input value={nodeData.globalKeyword || ""} onChange={e => setNodeData({...nodeData, globalKeyword: e.target.value})} className="w-full bg-slate-900/50 text-indigo-100 border-none rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 ring-indigo-400" placeholder="輸入此字將無視流程，直接空降跳轉於此 (選填)" />
@@ -332,7 +377,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                     )}
                 </div>
 
-                {/* 🔥 新增：分支路由獨立化 (所有節點皆可用) */}
                 <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-[#deff9a]/20 mt-4 shadow-inner">
                     <div className="flex justify-between items-center text-[10px] font-black text-[#deff9a] tracking-widest uppercase">
                         <div className="flex items-center gap-1">
@@ -365,7 +409,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             </div>
           )}
 
-          {!isGroup && (
+          {!isGroup && !isTimeRouter && (
             <div className="space-y-4 border-t border-white/5 pt-6 mt-4">
                 <button 
                     onClick={() => setShowPreview(!showPreview)}
@@ -384,18 +428,18 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
           )}
 
           <button onClick={() => { if(window.confirm(`確定刪除此${isGroup ? '區塊' : '節點'}？`)) deleteDoc(doc(db, "flowRules", nodeId!)); onClose(); }} className="w-full text-red-500/50 hover:text-red-500 text-[10px] py-4 uppercase font-bold tracking-widest flex items-center justify-center gap-1 mt-4 transition-colors border-t border-white/5 pt-8">
-            <Trash2 size={12}/> Delete {isGroup ? 'Group' : 'Node'}
+            <Trash2 size={12}/> Delete {isGroup ? 'Group' : isTimeRouter ? 'Router' : 'Node'}
           </button>
       </div>
 
       <div className="p-6 border-t border-white/10 bg-slate-900 flex gap-3 z-50">
-        {!isGroup && (
+        {!isGroup && !isTimeRouter && (
             <button onClick={handleDuplicate} disabled={isSaving} className="flex-1 bg-slate-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-slate-600">
                 <Copy size={18}/> 複製
             </button>
         )}
-        <button onClick={handleSave} disabled={isSaving} className={`${isGroup ? 'w-full' : 'flex-[2]'} bg-[#deff9a] text-black font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all hover:brightness-110`}>
-            {isSaving ? "處理中..." : `儲存${isGroup ? '區塊' : '配置'}`}
+        <button onClick={handleSave} disabled={isSaving} className={`${isGroup || isTimeRouter ? 'w-full' : 'flex-[2]'} bg-[#deff9a] text-black font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all hover:brightness-110`}>
+            {isSaving ? "處理中..." : `儲存${isGroup ? '區塊' : isTimeRouter ? '設定' : '配置'}`}
         </button>
       </div>
     </div>
