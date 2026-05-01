@@ -5,7 +5,7 @@ import ReactFlow, {
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
@@ -57,10 +57,10 @@ const GroupNode = ({ data, selected }: NodeProps) => (
 );
 
 const TimeRouterNode = ({ data, isConnectable }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white">
+  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 !left-[-10px]" />
-    <div className="font-black text-sm flex items-center gap-1.5 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
-    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
+    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
     <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 !right-[-10px]" />
     <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 !right-[-10px]" />
   </div>
@@ -135,34 +135,52 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
+  // 🚀 核心修正：顯式屬性過濾，解決 undefined 錯誤
   const executePublish = async () => {
+    if (!window.confirm("⚠️ 確定要將目前畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      const nodesToPublish = flowObject.nodes.map(n => ({
-        id: n.id,
-        position: n.positionAbsolute || n.position,
-        type: n.type,
-        data: JSON.parse(JSON.stringify(n.data)),
-        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
-        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-        messageType: n.data?.messageType || 'text',
-        nodeName: n.data?.nodeName || n.data?.label || 'Node',
-        parentNode: null
-      }));
-      await setDoc(doc(db, "botConfig", "production"), { nodes: nodesToPublish, edges: flowObject.edges.map(e => ({ ...e, color: (e.style?.stroke as string) || '#deff9a' })), viewport: flowObject.viewport, publishedAt: serverTimestamp(), publisher: "Roger" });
-      alert("✅ 1:1 發布成功");
-    } catch (e: any) { alert(e.message); } finally { setIsPublishing(false); }
-  };
+      const nodesToPublish = flowObject.nodes.map(n => {
+        // 遞迴清理 data 物件中的 undefined
+        const cleanData = JSON.parse(JSON.stringify(n.data, (k, v) => v === undefined ? null : v));
+        return {
+          id: n.id,
+          position: n.positionAbsolute || n.position || { x: 0, y: 0 },
+          type: n.type || 'custom',
+          data: cleanData,
+          width: n.width || (n.style?.width ? parseInt(n.style.width as string) : null),
+          height: n.height || (n.style?.height ? parseInt(n.style.height as string) : null),
+          messageType: n.data?.messageType || 'text',
+          nodeName: n.data?.nodeName || n.data?.label || 'Node',
+          customLabel: n.data?.customLabel || "",
+          parentNode: null
+        };
+      });
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      const nodeS = await getDocs(collection(db, "flowRules"));
-      const edgeS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "flowSnapshots"), { name: `版本_${new Date().toLocaleString()}`, nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
-      alert("✅ 草稿儲存成功");
-    } catch (e) { alert("儲存失敗"); } finally { setIsSaving(false); }
+      const edgesToPublish = flowObject.edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || null,
+        targetHandle: e.targetHandle || null,
+        color: (e.style?.stroke as string) || '#deff9a'
+      }));
+
+      await setDoc(doc(db, "botConfig", "production"), { 
+        nodes: nodesToPublish, 
+        edges: edgesToPublish, 
+        viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
+        publishedAt: serverTimestamp(), 
+        publisher: "Roger" 
+      });
+      alert("🚀 1:1 發布成功！");
+    } catch (e: any) { 
+      console.error("發布失敗:", e);
+      alert(`發布失敗：${e.message}`); 
+    } finally { 
+      setIsPublishing(false); 
+    }
   };
 
   return (
@@ -175,7 +193,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-1" />
-          <button onClick={handleSaveDraft} disabled={isSaving} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> {isSaving ? '儲存中...' : '儲存草稿版本'}</button>
+          <button onClick={async () => {
+            const nS = await getDocs(collection(db, "flowRules"));
+            const eS = await getDocs(collection(db, "flowEdges"));
+            await addDoc(collection(db, "flowSnapshots"), { name: `版本_${new Date().toLocaleString()}`, nodes: nS.docs.map(d => ({ id: d.id, ...d.data() })), edges: eS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
+            alert("✅ 草稿儲存成功");
+          }} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
 
@@ -183,14 +206,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <div className="absolute left-8 top-[480px] z-50 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
           <div className="p-3 bg-slate-800 border-b flex justify-between items-center"><span className="text-[10px] font-black text-slate-400">歷史紀錄</span><button onClick={() => setShowSnapshots(false)}><X size={14}/></button></div>
           <div className="max-h-60 overflow-y-auto p-2">
-            {snapshots.map(s => <div key={s.id} className="p-2 hover:bg-slate-800 rounded-lg cursor-pointer text-[10px] text-white flex justify-between items-center mb-1 group"><span>{s.name}</span><Download size={12} className="opacity-0 group-hover:opacity-100 text-emerald-400"/></div>)}
+            {snapshots.map(s => <div key={s.id} className="p-2 hover:bg-slate-800 rounded-lg cursor-pointer text-[10px] text-white flex justify-between items-center mb-1 group"><span>{s.name}</span><Download size={12} className="text-emerald-400"/></div>)}
           </div>
         </div>
       )}
 
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
-        defaultViewport={initialViewport.current}
         snapToGrid={snapToGrid} snapGrid={[20, 20]}
         connectionMode={ConnectionMode.Loose}
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
@@ -209,8 +231,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <Controls />
       </ReactFlow>
 
-      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
-      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
   );
 }
