@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'; // 🚀 重新引入 useRef
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -44,7 +44,13 @@ const CustomNode = ({ data, isConnectable }: any) => {
       <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">{data.label}</div>
+        
+        {/* 🚀 關鍵修復：把 Flag 加回來了，並恢復完整排版！ */}
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
+          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
+          {data.label}
+        </div>
+        
         <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
@@ -104,7 +110,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [isScheduling, setIsScheduling] = useState(false);
   
   const { getViewport, setCenter } = useReactFlow(); 
-  // 🚀 關鍵：用來追蹤路徑長度的變化
   const prevPathLengthRef = useRef(0);
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -172,7 +177,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             return { ...e, animated: isEdgeVisited ? true : (e.data?.dashed !== false), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
         }));
 
-        // 🚀 關鍵邏輯：只有當路徑變長 (使用者操作前進) 且長度大於 1 時才運鏡
         if (currentPathLength > prevPathLengthRef.current && currentPathLength > 1) {
             const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
             const activeNode = nodes.find(n => n.id === activeNodeId);
@@ -180,10 +184,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
                 setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
             }
         }
-        // 更新 Ref 紀錄
         prevPathLengthRef.current = currentPathLength;
     } else {
-        // 重置時歸零
         prevPathLengthRef.current = 0;
     }
   }, [activePath, setCenter, nodes]); 
@@ -262,7 +264,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             }
         }} 
         connectionMode={ConnectionMode.Loose} snapToGrid={snapToGrid} snapGrid={[20, 20]}
-        // 🚀 關鍵修正：移除了 fitView，防止自動歸心跳動
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
