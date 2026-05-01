@@ -5,7 +5,7 @@ import ReactFlow, {
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
@@ -76,7 +76,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   
   const reactFlowInstance = useReactFlow(); 
@@ -85,10 +85,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
     switch(type) {
-      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-      default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100';
+      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100';
+      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100';
+      default: return 'bg-blue-900/80 border-blue-500 text-blue-100';
     }
   };
 
@@ -135,33 +135,48 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
+  // 🚀 關鍵發布區域：顯式指定屬性，徹底解決 undefined 報錯
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將目前畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
-      const nodesToPublish = flowObject.nodes.map(n => ({
-        id: n.id,
-        position: n.positionAbsolute || n.position || { x: 0, y: 0 },
-        type: n.type || 'custom',
-        data: JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v)),
-        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
-        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-        messageType: n.data?.messageType || 'text',
-        nodeName: n.data?.nodeName || n.data?.label || 'Node',
-        customLabel: n.data?.customLabel || "",
-        parentNode: null
+      const nodesToPublish = flowObject.nodes.map(n => {
+        // 清洗 data，移除所有的 undefined
+        const cleanData = JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v));
+        return {
+          id: String(n.id),
+          position: n.positionAbsolute || n.position || { x: 0, y: 0 },
+          type: String(n.type || 'custom'),
+          data: cleanData,
+          width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
+          height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
+          messageType: String(n.data?.messageType || 'text'),
+          nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
+          customLabel: String(n.data?.customLabel || ""),
+          parentNode: null // 打平層級
+        };
+      });
+
+      const edgesToPublish = flowObject.edges.map(e => ({
+        id: String(e.id),
+        source: String(e.source),
+        target: String(e.target),
+        sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
+        targetHandle: e.targetHandle ? String(e.targetHandle) : null,
+        color: String((e.style?.stroke as string) || '#deff9a')
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
-        edges: flowObject.edges.map(e => ({ ...e, color: (e.style?.stroke as string) || '#deff9a' })), 
+        edges: edgesToPublish, 
         viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
         publishedAt: serverTimestamp(), 
         publisher: "Roger" 
       });
       alert("🚀 1:1 發布成功！");
     } catch (e: any) { 
+      console.error("發布失敗詳細原因:", e);
       alert(`發布失敗：${e.message}`); 
     } finally { 
       setIsPublishing(false); 
@@ -169,13 +184,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   };
 
   const handleSaveDraft = async () => {
-    setIsSaving(true);
+    setIsSavingDraft(true);
     try {
-      const nodeS = await getDocs(collection(db, "flowRules"));
-      const edgeS = await getDocs(collection(db, "flowEdges"));
-      await addDoc(collection(db, "flowSnapshots"), { name: `版本_${new Date().toLocaleString()}`, nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
+      const nS = await getDocs(collection(db, "flowRules"));
+      const eS = await getDocs(collection(db, "flowEdges"));
+      await addDoc(collection(db, "flowSnapshots"), { name: `版本_${new Date().toLocaleString()}`, nodes: nS.docs.map(d => ({ id: d.id, ...d.data() })), edges: eS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() });
       alert("✅ 草稿儲存成功");
-    } catch (e) { alert("儲存失敗"); } finally { setIsSaving(false); }
+    } catch (e) { alert("儲存失敗"); } finally { setIsSavingDraft(false); }
   };
 
   return (
@@ -183,12 +198,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       <CustomStyles />
       <div className="absolute left-8 top-8 z-10 flex flex-col gap-3">
           <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl font-black flex gap-2 hover:scale-105 active:scale-95 transition-all shadow-2xl border-2 border-rose-400"><Rocket size={20} /> {isPublishing ? '發布中' : '立即發布正式機'}</button>
-          <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新節點", messageType: "text", position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all shadow-emerald-500/20"><Plus size={20} /> ADD NODE</button>
-          <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "時間分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00" }, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all shadow-indigo-500/20"><Clock size={20} /> TIME ROUTER</button>
+          <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新節點", messageType: "text", position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Plus size={20} /> ADD NODE</button>
+          <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "時間分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00" }, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Clock size={20} /> TIME ROUTER</button>
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-1" />
-          <button onClick={handleSaveDraft} disabled={isSaving} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> {isSaving ? '儲存中...' : '儲存草稿版本'}</button>
+          <button onClick={handleSaveDraft} disabled={isSavingDraft} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> {isSavingDraft ? '儲存中...' : '儲存草稿版本'}</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
 
@@ -212,7 +227,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
-        onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
         onNodeDragStop={async (_, n) => { 
             const payload: any = { position: n.position };
             if (n.type === 'group') { payload.width = n.width; payload.height = n.height; }
@@ -223,8 +237,16 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <Controls />
       </ReactFlow>
 
-      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
-      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'node' && selectedId && (
+        <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right">
+          <NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} />
+        </div>
+      )}
+      {activePanel === 'edge' && selectedId && (
+        <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right">
+          <EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} />
+        </div>
+      )}
     </>
   );
 }
