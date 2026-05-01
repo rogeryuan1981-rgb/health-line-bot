@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -12,7 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 純粹的光暈特效，保證沒有任何改變大小或佈局的屬性
+// 🚀 關鍵優化 2：連線加上流動能量特效，發光效果更明顯
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -20,18 +20,24 @@ const CustomStyles = () => (
       50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
       100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
+    @keyframes flowEnergy {
+      from { stroke-dashoffset: 24; }
+      to { stroke-dashoffset: 0; }
+    }
     .node-current-glow {
       animation: smoothGlow 2.5s ease-in-out infinite !important;
       z-index: 1000;
     }
     .node-visited {
-      border-color: #60a5fa !important;
-      box-shadow: 0 0 15px rgba(96,165,250,0.4) !important;
+      border-color: #38bdf8 !important; 
+      box-shadow: 0 0 20px rgba(56,189,248,0.5) !important;
     }
     .edge-visited path {
-      stroke: #60a5fa !important;
-      stroke-width: 4px !important;
-      filter: drop-shadow(0 0 5px rgba(96,165,250,0.8));
+      stroke: #38bdf8 !important;
+      stroke-width: 5px !important;
+      stroke-dasharray: 12 12 !important;
+      animation: flowEnergy 0.8s linear infinite !important;
+      filter: drop-shadow(0 0 6px rgba(56,189,248,0.8)) !important;
     }
   `}} />
 );
@@ -108,6 +114,9 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [isScheduling, setIsScheduling] = useState(false);
   
   const { getViewport } = useReactFlow(); 
+  
+  // 🚀 關鍵優化 3：讀取本地 localStorage，記住 F5 重整前的畫面位置！
+  const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -157,7 +166,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 關鍵改動：【只有單純的樣式更新，絕對沒有任何攝影機運鏡！】
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
@@ -234,6 +242,9 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       )}
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
+        // 🚀 將 localStorage 掛載到初始狀態與結束滑動的事件上
+        defaultViewport={initialViewport.current}
+        onMoveEnd={(_, v) => localStorage.setItem('flow-viewport', JSON.stringify(v))}
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
         onEdgeUpdate={useCallback(async (o: Edge, n: Connection) => { try { await updateDoc(doc(db, "flowEdges", o.id), { source: n.source, target: n.target, sourceHandle: n.sourceHandle, targetHandle: n.targetHandle }); } catch(e){} }, [])}
         onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', createdAt: serverTimestamp() }); }, [])} 
