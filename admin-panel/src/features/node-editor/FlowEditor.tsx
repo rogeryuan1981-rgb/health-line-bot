@@ -101,7 +101,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
-      // 🚀 關鍵防禦：先取得所有「還存活」的節點 ID
       const validNodeIds = new Set(snap.docs.map(d => d.id));
 
       setNodes(snap.docs.map(d => {
@@ -121,7 +120,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           base.data = { ...data, label: data.nodeName };
         }
 
-        // 🚀 關鍵防禦：檢查 parentNode 標記的群組是否真的存在。如果已經被刪除，就自動解除父子綁定，防止白畫面崩潰。
         if (data.parentNode && validNodeIds.has(data.parentNode)) {
             base.parentNode = data.parentNode;
         }
@@ -163,6 +161,76 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         }));
     }
   }, [activePath]);
+
+  // 🚀 關鍵防禦一：攔截本地狀態更新，秒殺孤兒節點，防止刪除群組時發生「白畫面崩潰」
+  const handleNodesChange = useCallback((changes: any) => {
+      setNodes((nds) => {
+          const updatedNodes = applyNodeChanges(changes, nds);
+          const existingIds = new Set(updatedNodes.map(n => n.id));
+          return updatedNodes.map(n => {
+              if (n.parentNode && !existingIds.has(n.parentNode)) {
+                  return { ...n, parentNode: undefined }; // 如果爸爸被刪了，立刻解除綁定
+              }
+              return n;
+          });
+      });
+  }, [setNodes]);
+
+  // 🚀 關鍵修復二：自動吸附群組邏輯，讓卡片重新「黏回群組」上
+  const onNodeDragStop = useCallback(async (_: any, n: Node) => {
+      const p: any = { position: n.position };
+      if (n.type === 'group') {
+          p.width = n.width; p.height = n.height;
+      } else {
+          // 偵測卡片是否被拖曳到任何一個群組範圍內
+          const flowNodes = reactFlowInstance.getNodes();
+          const targetGroup = flowNodes.find(g => 
+              g.type === 'group' && 
+              g.id !== n.id &&
+              n.positionAbsolute && g.positionAbsolute &&
+              n.positionAbsolute.x >= g.positionAbsolute.x &&
+              n.positionAbsolute.x <= g.positionAbsolute.x + (g.width || 400) &&
+              n.positionAbsolute.y >= g.positionAbsolute.y &&
+              n.positionAbsolute.y <= g.positionAbsolute.y + (g.height || 300)
+          );
+
+          if (targetGroup) {
+              if (n.parentNode !== targetGroup.id) {
+                  p.parentNode = targetGroup.id;
+                  // React Flow 規定群組內的子節點必須轉換為相對座標
+                  p.position = {
+                      x: n.positionAbsolute!.x - targetGroup.positionAbsolute!.x,
+                      y: n.positionAbsolute!.y - targetGroup.positionAbsolute!.y
+                  };
+              } else {
+                  p.parentNode = targetGroup.id;
+              }
+          } else {
+              p.parentNode = null; // 拖出群組範圍，自動解綁
+              if (n.parentNode && n.positionAbsolute) {
+                  p.position = n.positionAbsolute; // 解綁後轉回絕對座標
+              }
+          }
+      }
+      await updateDoc(doc(db, "flowRules", n.id), p);
+  }, [reactFlowInstance]);
+
+  // 🚀 關鍵修復三：徹底從資料庫根除孤兒節點，確保重新整理後也不會崩潰
+  const onNodesDelete = useCallback(async (dns: Node[]) => {
+      const groupIds = new Set(dns.filter(d => d.type === 'group').map(d => d.id));
+      for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id));
+      
+      if (groupIds.size > 0) {
+          const snap = await getDocs(collection(db, "flowRules"));
+          for (const docSnap of snap.docs) {
+              const data = docSnap.data();
+              if (data.parentNode && groupIds.has(data.parentNode)) {
+                  // 把還掛在被刪除群組上的卡片解綁
+                  await updateDoc(doc(db, "flowRules", docSnap.id), { parentNode: null });
+              }
+          }
+      }
+  }, []);
 
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
@@ -248,15 +316,15 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         defaultViewport={initialViewport.current}
         snapToGrid={snapToGrid} snapGrid={[20, 20]}
         connectionMode={ConnectionMode.Loose}
-        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
+        onNodesChange={handleNodesChange} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
         onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
-        onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
+        onNodesDelete={onNodesDelete}
         onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
-        onNodeDragStop={async (_, n) => { const p: any = { position: n.position }; if (n.type === 'group') { p.width = n.width; p.height = n.height; } await updateDoc(doc(db, "flowRules", n.id), p); }}
+        onNodeDragStop={onNodeDragStop}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
