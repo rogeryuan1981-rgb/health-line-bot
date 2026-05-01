@@ -101,17 +101,35 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
+      // 🚀 關鍵防禦：先取得所有「還存活」的節點 ID
+      const validNodeIds = new Set(snap.docs.map(d => d.id));
+
       setNodes(snap.docs.map(d => {
         const data = d.data();
+        let base: any = { id: d.id, position: data.position || { x: 100, y: 100 } };
+
         if (data.messageType === 'group_box') {
-          return { id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 }, data: { ...data, title: data.nodeName, customLabel: data.customLabel }, zIndex: -1 };
+          base.type = 'group';
+          base.style = { width: data.width || 400, height: data.height || 300 };
+          base.data = { ...data, title: data.nodeName, customLabel: data.customLabel };
+          base.zIndex = -1;
+        } else if (data.messageType === 'time_router') {
+          base.type = 'timeRouter';
+          base.data = { ...data };
+        } else {
+          base.type = 'custom';
+          base.data = { ...data, label: data.nodeName };
         }
-        if (data.messageType === 'time_router') {
-          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { ...data } };
+
+        // 🚀 關鍵防禦：檢查 parentNode 標記的群組是否真的存在。如果已經被刪除，就自動解除父子綁定，防止白畫面崩潰。
+        if (data.parentNode && validNodeIds.has(data.parentNode)) {
+            base.parentNode = data.parentNode;
         }
-        return { id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { ...data, label: data.nodeName } };
+
+        return base;
       }));
     });
+    
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
@@ -133,7 +151,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
-  // 🚀 關鍵修復：把您原本用來顯示「對話發光軌跡」的邏輯加回來，解決 TS6133 報錯
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
