@@ -12,7 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 關鍵優化 2：連線加上流動能量特效，發光效果更明顯
+// 🚀 視覺特效定義
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -51,7 +51,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
       <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight text-white">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
@@ -114,8 +114,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [isScheduling, setIsScheduling] = useState(false);
   
   const { getViewport } = useReactFlow(); 
-  
-  // 🚀 關鍵優化 3：讀取本地 localStorage，記住 F5 重整前的畫面位置！
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -176,7 +174,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             if (isVisited) return { ...n, className: `${cleanClass} node-visited` };
             return { ...n, className: cleanClass };
         }));
-
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
             return { ...e, animated: isEdgeVisited ? true : (e.data?.dashed !== false), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
@@ -192,7 +189,50 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
-  const executePublish = async () => { if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; setIsPublishing(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await setDoc(doc(db, "botConfig", "production"), { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), publishedAt: serverTimestamp() }); alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！"); } catch (e) { alert("發布失敗，請重試"); } finally { setIsPublishing(false); } };
+  
+  // 🚀 關鍵優化區域：修正發布邏輯，確保座標與父子關係完整存入
+  const executePublish = async () => { 
+    if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
+    if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
+    setIsPublishing(true); 
+    try { 
+      // 🚀 關鍵：使用 positionAbsolute 獲取畫布上的絕對座標
+      const nodesToPublish = nodes.map(n => {
+        return {
+          id: n.id,
+          position: n.positionAbsolute || n.position, 
+          type: n.type,
+          data: n.data,
+          parentNode: n.parentNode || null,
+          width: n.width || n.style?.width || null,
+          height: n.height || n.style?.height || null,
+          messageType: n.data.messageType,
+          nodeName: n.data.nodeName || n.data.label,
+          customLabel: n.data.customLabel || ""
+        };
+      });
+
+      const edgeS = await getDocs(collection(db, "flowEdges")); 
+      const edgesToPublish = edgeS.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 🚀 儲存目前的視角 Viewport
+      const currentViewport = getViewport();
+
+      await setDoc(doc(db, "botConfig", "production"), { 
+        nodes: nodesToPublish, 
+        edges: edgesToPublish, 
+        viewport: currentViewport,
+        publishedAt: serverTimestamp(),
+        publisher: "Yuan Roger"
+      }); 
+      alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！"); 
+    } catch (e) { 
+      console.error(e);
+      alert("發布失敗，請重試"); 
+    } finally { 
+      setIsPublishing(false); 
+    } 
+  };
 
   return (
     <>
@@ -242,7 +282,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       )}
       <ReactFlow 
         nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
-        // 🚀 將 localStorage 掛載到初始狀態與結束滑動的事件上
         defaultViewport={initialViewport.current}
         onMoveEnd={(_, v) => localStorage.setItem('flow-viewport', JSON.stringify(v))}
         onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
