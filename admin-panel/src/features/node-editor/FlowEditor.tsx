@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
-  Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
+  Node, Edge, ReactFlowProvider, NodeProps,
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
-import NodeEditPanel from '../message-form/NodeEditPanel';
-import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket } from 'lucide-react';
+import { Flag, Globe, Rocket } from 'lucide-react';
 
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -30,11 +29,11 @@ const CustomNode = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label || data.nodeName}
         </div>
-        <div className="mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10">{data.messageType}</div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-300">
+          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900" />
           </div>
@@ -74,7 +73,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         }
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
-          data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options },
+          data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
           className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit bg-blue-950/90 border-blue-500`
         };
       }));
@@ -120,7 +119,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         publishedAt: serverTimestamp(),
         publisher: "Roger"
       });
-      alert("✅ 1:1 發布成功");
+      alert("✅ 發布成功");
     } catch (e: any) { alert(e.message); } finally { setIsPublishing(false); }
   };
 
