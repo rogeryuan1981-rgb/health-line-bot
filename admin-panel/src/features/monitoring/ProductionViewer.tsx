@@ -6,7 +6,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Flag } from 'lucide-react';
+import { ShieldCheck, Flag, Clock } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
 const GlobalProdStyles = () => (
@@ -33,7 +33,7 @@ const CustomNodeProd = ({ data }: any) => {
     <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 text-white ${getBg()} ${isStart ? 'node-prod-glow' : ''}`}>
       <Handle type="target" position={Position.Left} id="left_in" />
       <div className="flex flex-col items-center mb-4 relative text-center">
-        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
+        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase">🚀 START</div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
           {data.nodeName}
@@ -66,7 +66,17 @@ const GroupNodeProd = ({ data }: any) => {
   );
 };
 
-const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd };
+const TimeRouterNodeProd = ({ data }: any) => (
+  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white">
+    <Handle type="target" position={Position.Left} id="left_in" />
+    <div className="font-black text-sm flex items-center gap-2 mb-1"><Clock size={16} className="text-indigo-400" />{data.nodeName}</div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
+    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} />
+    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} />
+  </div>
+);
+
+const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -83,7 +93,7 @@ function ProductionCanvas() {
           const base: any = {
             id: n.id,
             position: n.position,
-            type: n.type || 'custom',
+            type: n.type === 'group' ? 'group' : (n.messageType === 'time_router' ? 'timeRouter' : 'custom'),
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
@@ -92,10 +102,8 @@ function ProductionCanvas() {
           }
           return base;
         });
-
         setNodes(processedNodes);
         setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 3 } })));
-
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 500);
@@ -120,11 +128,7 @@ function ProductionCanvas() {
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
           <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
         </ReactFlow>
-        {selectedId && (
-          <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right">
-             <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
-          </div>
-        )}
+        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" /></div>}
       </div>
     </div>
   );
