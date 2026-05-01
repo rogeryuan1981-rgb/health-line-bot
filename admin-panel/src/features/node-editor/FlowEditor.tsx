@@ -12,6 +12,30 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
+// 🚀 核心升級：極致滑順的自訂 CSS 呼吸燈與路徑軌跡塗裝
+const CustomStyles = () => (
+  <style dangerouslySetInnerHTML={{__html: `
+    @keyframes smoothGlow {
+      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); transform: scale(1); }
+      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); transform: scale(1.02); }
+      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); transform: scale(1); }
+    }
+    .node-current-glow {
+      animation: smoothGlow 2.5s ease-in-out infinite !important;
+      z-index: 1000;
+    }
+    .node-visited {
+      border-color: #60a5fa !important;
+      box-shadow: 0 0 15px rgba(96,165,250,0.4) !important;
+    }
+    .edge-visited path {
+      stroke: #60a5fa !important;
+      stroke-width: 4px !important;
+      filter: drop-shadow(0 0 5px rgba(96,165,250,0.8));
+    }
+  `}} />
+);
+
 const CustomNode = ({ data, isConnectable }: any) => {
   const options = data.options || [];
   const isStart = data.nodeName === '預設回覆';
@@ -70,7 +94,8 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
 
 const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
 
-function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string | null }) {
+// 🚀 接收並解構 activePath 歷史足跡
+function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [activePanel, setActivePanel] = useState<'node' | 'edge' | null>(null);
@@ -146,22 +171,40 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
+  // 🚀 核心大改版：路徑高亮塗裝系統
   useEffect(() => {
-    if (activeSimulatorNodeId) {
+    if (activePath && activePath.nodes.length > 0) {
+        
+        // 1. 更新節點的 CSS Class
         setNodes(nds => nds.map(n => {
-            const baseClass = (n.className || '').replace(/ring-4 ring-rose-500 shadow-\[0_0_40px_rgba\(244,63,94,0\.8\)\] animate-pulse/g, '');
-            if (n.id === activeSimulatorNodeId) {
-                return { ...n, className: `${baseClass} ring-4 ring-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.8)] animate-pulse`.trim() };
-            }
-            return { ...n, className: baseClass.trim() };
+            const cleanClass = (n.className || '').replace(/node-current-glow/g, '').replace(/node-visited/g, '').trim();
+            const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
+            const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
+
+            if (isCurrent) return { ...n, className: `${cleanClass} node-current-glow` };
+            if (isVisited) return { ...n, className: `${cleanClass} node-visited` };
+            return { ...n, className: cleanClass };
         }));
 
-        const activeNode = nodes.find(n => n.id === activeSimulatorNodeId);
+        // 2. 更新連線的 CSS Class
+        setEdges(eds => eds.map(e => {
+            const isEdgeVisited = activePath.edges.includes(e.id);
+            return {
+                ...e,
+                animated: isEdgeVisited ? true : (e.data?.dashed !== false),
+                className: isEdgeVisited ? 'edge-visited' : '',
+                zIndex: isEdgeVisited ? 1000 : 0,
+            };
+        }));
+
+        // 3. 自動對焦到當前最後一個節點
+        const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
+        const activeNode = nodes.find(n => n.id === activeNodeId);
         if (activeNode) {
-            setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.2, duration: 800 });
+            setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
         }
     }
-  }, [activeSimulatorNodeId, setCenter]); 
+  }, [activePath, setCenter]); 
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
   const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
@@ -203,6 +246,8 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
 
   return (
     <>
+      <CustomStyles />
+
       {pendingSchedule && (
         <div className="absolute top-0 left-0 w-full bg-indigo-600 text-white text-xs font-bold py-2.5 flex justify-center items-center gap-6 z-[60] shadow-lg animate-in slide-in-from-top">
             <span className="flex items-center gap-2"><Clock size={14} className="animate-pulse"/> 系統已排程於 <span className="text-[#deff9a] text-sm tracking-wide">{pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}</span> 發布新版本</span>
@@ -282,6 +327,6 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
   );
 }
 
-export default function FlowEditor({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string | null }) {
-  return <div className="w-full h-full bg-[#020617] flex overflow-hidden font-sans"><ReactFlowProvider><FlowContent activeSimulatorNodeId={activeSimulatorNodeId} /></ReactFlowProvider></div>;
+export default function FlowEditor({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
+  return <div className="w-full h-full bg-[#020617] flex overflow-hidden font-sans"><ReactFlowProvider><FlowContent activePath={activePath} /></ReactFlowProvider></div>;
 }
