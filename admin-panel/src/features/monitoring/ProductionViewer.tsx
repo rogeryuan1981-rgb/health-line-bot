@@ -9,16 +9,14 @@ import { db } from '../../firebase';
 import { ShieldCheck, Globe, Clock, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 正式機視覺同步 CSS
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
     .node-prod-glow { box-shadow: 0 0 30px rgba(250,204,21,0.4) !important; border-color: #facc15 !important; }
-    .edge-path-prod { stroke-width: 3px !important; }
+    .edge-visited path { stroke: #38bdf8 !important; stroke-width: 4px !important; }
   `}} />
 );
 
-// 🚀 1:1 還原自定義節點
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
@@ -40,9 +38,7 @@ const CustomNodeProd = ({ data }: any) => {
       <div className="flex flex-col items-center mb-4 relative text-white">
         {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
-        
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
-          {/* 🚀 關鍵修正：使用 Flag icon 解決 TS6133 錯誤 */}
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.nodeName || data.label}
         </div>
@@ -53,21 +49,20 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} style={{ right: -8 }} />
+            {/* 🚀 關鍵：Handle ID 必須與編輯器 ID (opt_0, opt_1...) 完全一致 */}
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} style={{ right: -10 }} />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} style={{ right: -10 }} />}
     </div>
   );
 };
 
-// 🚀 1:1 還原群組盒
 const GroupNodeProd = ({ data }: any) => {
   const isDone = data.customLabel === '已完成';
   const isTodo = data.customLabel === '待處理';
   const colorClass = isDone ? 'bg-emerald-600 border-emerald-400' : isTodo ? 'bg-amber-600 border-amber-400' : 'bg-blue-600 border-blue-400';
-
   return (
     <div className="w-full h-full relative">
       <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 text-white ${colorClass}`}>
@@ -77,7 +72,6 @@ const GroupNodeProd = ({ data }: any) => {
   );
 };
 
-// 🚀 1:1 還原時間分流
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative text-white">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
@@ -95,62 +89,44 @@ const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: Ti
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [stats, setStats] = useState({ nodes: 0, lastDate: '' });
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
+  const [lastUpdate, setLastUpdate] = useState('');
   const initRef = useRef(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
         const raw = snap.data();
-        const rawNodes = raw.nodes || [];
-        const rawEdges = raw.edges || [];
-
-        const processedNodes = rawNodes.map((n: any) => {
-          if (n.messageType === 'group_box') {
-            const isDone = n.customLabel === '已完成';
-            const isTodo = n.customLabel === '待處理';
-            return {
-              id: n.id,
-              position: n.position,
-              type: 'group',
-              style: { 
-                width: n.width || 400, 
-                height: n.height || 300, 
-                backgroundColor: isDone ? 'rgba(16, 185, 129, 0.05)' : isTodo ? 'rgba(245, 158, 11, 0.05)' : 'rgba(59, 130, 246, 0.03)',
-                border: `2px dashed ${isDone ? '#10b98180' : isTodo ? '#f59e0b80' : '#3b82f650'}`,
-                borderRadius: '32px'
-              },
-              data: { title: n.nodeName, customLabel: n.customLabel },
-              zIndex: -1,
-              draggable: false
-            };
-          }
-
-          return {
+        const processedNodes = (raw.nodes || []).map((n: any) => {
+          const base: any = {
             id: n.id,
             position: n.position,
-            type: n.messageType === 'time_router' ? 'timeRouter' : 'custom',
+            type: n.type === 'group' ? 'group' : (n.messageType === 'time_router' ? 'timeRouter' : 'custom'),
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType },
-            draggable: false,
-            selectable: true
+            draggable: false
           };
+          // 🚀 關鍵：強制套用發布時抓到的 width/height
+          if (n.type === 'group') {
+            base.style = { 
+              width: n.width, 
+              height: n.height,
+              backgroundColor: n.customLabel === '已完成' ? 'rgba(16, 185, 129, 0.05)' : n.customLabel === '待處理' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(59, 130, 246, 0.05)',
+              border: '2px dashed rgba(255,255,255,0.2)',
+              borderRadius: '32px'
+            };
+          }
+          return base;
         });
 
         setNodes(processedNodes);
-        
-        setEdges(rawEdges.map((e: any) => ({
+        setEdges((raw.edges || []).map((e: any) => ({
           ...e,
           animated: true,
-          style: { stroke: e.color || '#60a5fa', strokeWidth: 2.5, strokeDasharray: '5 5' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa' }
+          style: { stroke: e.color, strokeWidth: 2.5, strokeDasharray: '6 4' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: e.color }
         })));
 
-        setStats({ 
-          nodes: rawNodes.length, 
-          lastDate: raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : new Date().toLocaleString()
-        });
+        setLastUpdate(raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : new Date().toLocaleString());
 
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
@@ -163,63 +139,25 @@ function ProductionCanvas() {
   }, [setViewport]);
 
   return (
-    <div className="flex flex-col h-full bg-[#020617] overflow-hidden relative font-sans">
+    <div className="flex flex-col h-full bg-[#020617] font-sans">
       <GlobalProdStyles />
-      
-      {/* 狀態列 */}
-      <div className="absolute top-8 left-8 z-50 pointer-events-none">
-        <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl backdrop-blur-xl flex items-center gap-5 pointer-events-auto">
-          <div className="bg-rose-600 p-2.5 rounded-xl shadow-lg shadow-rose-600/20"><ShieldCheck className="text-white" size={24} /></div>
+      <div className="absolute top-8 left-8 z-50">
+        <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl backdrop-blur-xl flex items-center gap-5">
+          <div className="bg-rose-600 p-2.5 rounded-xl shadow-lg shadow-rose-600/30"><ShieldCheck className="text-white" size={24} /></div>
           <div>
             <h1 className="text-[12px] font-black text-rose-500 italic tracking-[0.2em] uppercase leading-none">Production Monitoring</h1>
-            <p className="text-[11px] text-slate-400 font-bold mt-1.5 tracking-tight flex items-center gap-2">
-                線上版本：<span className="text-white">{stats.lastDate}</span>
-            </p>
-          </div>
-          <div className="h-10 w-px bg-white/10 mx-1" />
-          <div className="flex flex-col items-center">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nodes</span>
-            <span className="text-xl font-black text-white leading-none">{stats.nodes}</span>
+            <p className="text-[11px] text-slate-400 font-bold mt-1.5 tracking-tight">線上版本：<span className="text-white">{lastUpdate}</span></p>
           </div>
         </div>
       </div>
-
-      <div className="flex-1 relative flex">
-        <div className="flex-1 relative">
-          <ReactFlow 
-            nodes={nodes} 
-            edges={edges} 
-            nodeTypes={nodeTypes} 
-            onNodeClick={(_, n) => n.type !== 'group' && setSelectedNodeId(n.id)} 
-            onPaneClick={() => setSelectedNodeId(null)} 
-            nodesDraggable={false}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-            <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
-          </ReactFlow>
-        </div>
-
-        {selectedNodeId && (
-          <div className="w-[450px] h-full border-l border-white/10 z-[100] bg-slate-950 shadow-2xl animate-in slide-in-from-right duration-300">
-             <NodeEditPanel 
-                nodeId={selectedNodeId} 
-                onClose={() => setSelectedNodeId(null)} 
-                isReadOnly={true} 
-                sourceCollection="botConfig/production" 
-              />
-          </div>
-        )}
-      </div>
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false}>
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+        <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
+      </ReactFlow>
     </div>
   );
 }
 
 export default function ProductionViewer() {
-  return (
-    <div className="flex-1 h-full overflow-hidden bg-[#020617]">
-      <ReactFlowProvider>
-        <ProductionCanvas />
-      </ReactFlowProvider>
-    </div>
-  );
+  return <div className="flex-1 h-full overflow-hidden bg-[#020617]"><ReactFlowProvider><ProductionCanvas /></ReactFlowProvider></div>;
 }
