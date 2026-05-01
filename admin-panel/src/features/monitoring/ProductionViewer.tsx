@@ -6,7 +6,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Globe, Clock, AlertTriangle, Flag } from 'lucide-react';
+import { ShieldCheck, Globe, Clock, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
 const GlobalProdStyles = () => (
@@ -23,22 +23,22 @@ const CustomNodeProd = ({ data }: any) => {
   const isStart = data.nodeName === '預設回覆' || data.label === '預設回覆';
   return (
     <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl bg-slate-900/95 flex flex-col p-3 ${isStart ? 'border-yellow-400 node-prod-glow' : 'border-slate-700'}`}>
-      <Handle type="target" position={Position.Left} id="left_in" />
+      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
       <div className="flex flex-col items-center mb-4 relative">
-        {isStart && <div className="absolute -top-8 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1"><Flag size={10} className="fill-black"/> START</div>}
+        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1"><Flag size={10} className="fill-black"/> START</div>}
         {data.isGlobal && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm text-white text-center break-words w-full">{data.label || data.nodeName}</div>
-        <div className="mt-1 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase">{data.messageType || 'FLEX'}</div>
+        <div className="mt-1 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{data.messageType || 'FLEX'}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-800/80 border border-white/5 rounded-lg py-1.5 text-[11px] font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} />}
     </div>
   );
 };
@@ -53,13 +53,13 @@ const GroupNodeProd = ({ data }: any) => (
 
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[95px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_25px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative">
-    <Handle type="target" position={Position.Left} id="left_in" />
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
     <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
       {data.config?.forceOffHours ? <span className="text-rose-400">🚨 FORCE OFF</span> : `${data.config?.startTime} - ${data.config?.endTime}`}
     </div>
-    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} />
-    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} />
+    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} isConnectable={false} />
+    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} isConnectable={false} />
   </div>
 );
 
@@ -81,11 +81,9 @@ function ProductionCanvas() {
         const rawNodes = raw.nodes || [];
         const rawEdges = raw.edges || [];
 
-        // 🚀 第一階段：分離群組與一般節點
         const groups = rawNodes.filter((n: any) => n.messageType === 'group_box');
         const items = rawNodes.filter((n: any) => n.messageType !== 'group_box');
 
-        // 🚀 第二階段：重建父子關係與正確的座標偏移
         const processedGroups = groups.map((n: any) => {
           const isDone = n.customLabel === '已完成';
           const isTodo = n.customLabel === '待處理';
@@ -98,7 +96,6 @@ function ProductionCanvas() {
         });
 
         const processedItems = items.map((n: any) => {
-          // 關鍵：找出該節點屬於哪個群組
           const parent = groups.find((g: any) => 
             n.position.x >= g.position.x && n.position.x <= g.position.x + g.width &&
             n.position.y >= g.position.y && n.position.y <= g.position.y + g.height
@@ -106,18 +103,18 @@ function ProductionCanvas() {
 
           return {
             id: n.id,
-            // 如果在群組內，轉換為相對座標
             position: parent ? { x: n.position.x - parent.position.x, y: n.position.y - parent.position.y } : n.position,
             parentNode: parent?.id,
             type: n.messageType === 'time_router' ? 'timeRouter' : 'custom',
             data: { ...n, label: n.nodeName },
             draggable: false,
+            selectable: true,
             className: n.nodeName === '預設回覆' ? 'node-prod-glow' : ''
           };
         });
 
         setNodes([...processedGroups, ...processedItems]);
-        setEdges(rawEdges.map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa' } })));
+        setEdges(rawEdges.map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 2, strokeDasharray: '6 4' }, markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa' } })));
         setStats({ nodes: rawNodes.length, lastDate: raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : '未知' });
 
         if (!initRef.current) {
