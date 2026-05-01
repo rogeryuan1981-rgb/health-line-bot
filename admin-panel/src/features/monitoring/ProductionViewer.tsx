@@ -6,7 +6,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Flag, Clock } from 'lucide-react';
+import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
 const GlobalProdStyles = () => (
@@ -16,24 +16,26 @@ const GlobalProdStyles = () => (
   `}} />
 );
 
+// 🚀 與編輯器完全一致的 UI 組件
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
   const getBg = () => {
-    if (isStart) return 'bg-slate-900 border-yellow-400';
+    if (isStart) return 'bg-slate-900 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
     switch(data.messageType) {
-      case 'carousel': case 'flex': return 'bg-amber-950/90 border-amber-500';
-      case 'image': return 'bg-emerald-950/90 border-emerald-500';
-      case 'video': return 'bg-rose-950/90 border-rose-500';
-      default: return 'bg-blue-950/90 border-blue-500';
+      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+      default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
     }
   };
 
   return (
     <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 text-white ${getBg()} ${isStart ? 'node-prod-glow' : ''}`}>
-      <Handle type="target" position={Position.Left} id="left_in" />
+      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
       <div className="flex flex-col items-center mb-4 relative text-center">
-        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
+        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase">🚀 START</div>}
+        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
           {data.nodeName}
@@ -44,11 +46,11 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} style={{ right: -10 }} />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} style={{ right: -10 }} />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" style={{ right: -10 }} />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} style={{ right: -10 }} />}
     </div>
   );
 };
@@ -57,8 +59,9 @@ const GroupNodeProd = ({ data }: any) => {
   const isDone = data.customLabel === '已完成';
   const isTodo = data.customLabel === '待處理';
   const color = isDone ? 'bg-emerald-600 border-emerald-400' : isTodo ? 'bg-amber-600 border-amber-400' : 'bg-blue-600 border-blue-400';
+  const borderColor = isDone ? 'border-emerald-500/50 bg-emerald-500/5' : isTodo ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5';
   return (
-    <div className="w-full h-full relative">
+    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative ${borderColor}`}>
       <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase shadow-2xl border-2 z-50 text-white ${color}`}>
         {data.title || '區塊'}
       </div>
@@ -68,9 +71,9 @@ const GroupNodeProd = ({ data }: any) => {
 
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
-    <Handle type="target" position={Position.Left} id="left_in" />
-    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
-    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
+    <div className="font-black text-sm flex items-center justify-center gap-2 mb-1 w-full"><Clock size={16} className="text-indigo-400" />{data.nodeName}</div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
     <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} />
     <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} />
   </div>
@@ -93,18 +96,22 @@ function ProductionCanvas() {
           const base: any = {
             id: n.id,
             position: n.position,
-            type: n.type || 'custom',
+            type: n.type, // 直接複用編輯器存入的 type
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
           if (n.type === 'group') {
-            base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, backgroundColor: 'rgba(255,255,255,0.02)', border: '2px dashed rgba(255,255,255,0.15)', borderRadius: '32px' };
+            base.style = { 
+                width: Number(n.width) || 400, 
+                height: Number(n.height) || 300, 
+                borderRadius: '32px' 
+            };
           }
           return base;
         });
 
         setNodes(processedNodes);
-        setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 3 } })));
+        setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#deff9a', strokeWidth: 3 } })));
 
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
