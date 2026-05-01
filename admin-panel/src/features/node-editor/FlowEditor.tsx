@@ -12,7 +12,6 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 核心升級：極致滑順的自訂 CSS 呼吸燈與路徑軌跡塗裝
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -94,7 +93,6 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
 
 const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
 
-// 🚀 接收並解構 activePath 歷史足跡
 function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -171,11 +169,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 核心大改版：路徑高亮塗裝系統
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
-        
-        // 1. 更新節點的 CSS Class
         setNodes(nds => nds.map(n => {
             const cleanClass = (n.className || '').replace(/node-current-glow/g, '').replace(/node-visited/g, '').trim();
             const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
@@ -186,7 +181,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             return { ...n, className: cleanClass };
         }));
 
-        // 2. 更新連線的 CSS Class
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
             return {
@@ -197,11 +191,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             };
         }));
 
-        // 3. 自動對焦到當前最後一個節點
-        const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
-        const activeNode = nodes.find(n => n.id === activeNodeId);
-        if (activeNode) {
-            setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
+        // 🚀 關鍵修改：只有當路徑大於 1 步時（代表使用者真正開始對話推進），才執行運鏡！初次開啟或重置時不干擾畫布。
+        if (activePath.nodes.length > 1) {
+            const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
+            const activeNode = nodes.find(n => n.id === activeNodeId);
+            if (activeNode) {
+                setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
+            }
         }
     }
   }, [activePath, setCenter]); 
