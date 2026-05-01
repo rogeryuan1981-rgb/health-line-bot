@@ -9,6 +9,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Globe, Clock, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
+// 🚀 監測專用 CSS：確保連線與發光效果一致
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
@@ -17,6 +18,7 @@ const GlobalProdStyles = () => (
   `}} />
 );
 
+// 🚀 1:1 自定義節點：包含正確的 Handle ID 以對齊連線
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
@@ -32,12 +34,13 @@ const CustomNodeProd = ({ data }: any) => {
   };
 
   return (
-    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 transition-all ${getBgColor()} ${isStart ? 'node-prod-glow' : ''}`}>
+    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 ${getBgColor()} ${isStart ? 'node-prod-glow' : ''}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
       
       <div className="flex flex-col items-center mb-4 relative text-white">
         {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
+        
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.nodeName || data.label}
@@ -59,6 +62,7 @@ const CustomNodeProd = ({ data }: any) => {
   );
 };
 
+// 🚀 1:1 群組節點：解決大小不正確與標籤顏色
 const GroupNodeProd = ({ data }: any) => {
   const isDone = data.customLabel === '已完成';
   const isTodo = data.customLabel === '待處理';
@@ -72,6 +76,7 @@ const GroupNodeProd = ({ data }: any) => {
   );
 };
 
+// 🚀 1:1 時間分流節點
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative text-white">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
@@ -89,6 +94,7 @@ const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: Ti
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
   const [lastUpdate, setLastUpdate] = useState('');
   const initRef = useRef(false);
@@ -105,13 +111,13 @@ function ProductionCanvas() {
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType },
             draggable: false
           };
-          // 🚀 關鍵：強制套用發布時抓到的 width/height
+          // 🚀 解決群組大小問題：顯式設定 style
           if (n.type === 'group') {
             base.style = { 
-              width: n.width, 
-              height: n.height,
-              backgroundColor: n.customLabel === '已完成' ? 'rgba(16, 185, 129, 0.05)' : n.customLabel === '待處理' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(59, 130, 246, 0.05)',
-              border: '2px dashed rgba(255,255,255,0.2)',
+              width: Number(n.width) || 400, 
+              height: Number(n.height) || 300,
+              backgroundColor: 'rgba(59, 130, 246, 0.03)',
+              border: '2px dashed rgba(255,255,255,0.15)',
               borderRadius: '32px'
             };
           }
@@ -126,7 +132,7 @@ function ProductionCanvas() {
           markerEnd: { type: MarkerType.ArrowClosed, color: e.color }
         })));
 
-        setLastUpdate(raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : new Date().toLocaleString());
+        setLastUpdate(raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : 'Just Now');
 
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
@@ -139,25 +145,57 @@ function ProductionCanvas() {
   }, [setViewport]);
 
   return (
-    <div className="flex flex-col h-full bg-[#020617] font-sans">
+    <div className="flex flex-col h-full bg-[#020617] font-sans relative">
       <GlobalProdStyles />
+      
+      {/* 頂部狀態列 */}
       <div className="absolute top-8 left-8 z-50">
         <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl backdrop-blur-xl flex items-center gap-5">
           <div className="bg-rose-600 p-2.5 rounded-xl shadow-lg shadow-rose-600/30"><ShieldCheck className="text-white" size={24} /></div>
           <div>
-            <h1 className="text-[12px] font-black text-rose-500 italic tracking-[0.2em] uppercase leading-none">Production Monitoring</h1>
-            <p className="text-[11px] text-slate-400 font-bold mt-1.5 tracking-tight">線上版本：<span className="text-white">{lastUpdate}</span></p>
+            <h1 className="text-[12px] font-black text-rose-500 italic uppercase leading-none">Production Monitoring</h1>
+            <p className="text-[11px] text-slate-400 font-bold mt-1.5">線上版本：<span className="text-white">{lastUpdate}</span></p>
           </div>
         </div>
       </div>
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false}>
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-        <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
-      </ReactFlow>
+
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 relative">
+          <ReactFlow 
+            nodes={nodes} 
+            edges={edges} 
+            nodeTypes={nodeTypes} 
+            nodesDraggable={false}
+            onNodeClick={(_, n) => n.type !== 'group' && setSelectedNodeId(n.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+            <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
+          </ReactFlow>
+        </div>
+
+        {/* 🚀 關鍵修正：渲染 NodeEditPanel 解決 TS6133 錯誤 */}
+        {selectedNodeId && (
+          <div className="w-[450px] h-full border-l border-white/10 z-[100] bg-slate-950 shadow-2xl animate-in slide-in-from-right duration-300">
+             <NodeEditPanel 
+                nodeId={selectedNodeId} 
+                onClose={() => setSelectedNodeId(null)} 
+                isReadOnly={true} 
+                sourceCollection="botConfig/production" 
+              />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function ProductionViewer() {
-  return <div className="flex-1 h-full overflow-hidden bg-[#020617]"><ReactFlowProvider><ProductionCanvas /></ReactFlowProvider></div>;
+  return (
+    <div className="flex-1 h-full overflow-hidden bg-[#020617]">
+      <ReactFlowProvider>
+        <ProductionCanvas />
+      </ReactFlowProvider>
+    </div>
+  );
 }
