@@ -10,8 +10,9 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect } from 'lucide-react';
+import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock } from 'lucide-react';
 
+// --- 子組件：標準訊息節點 ---
 const CustomNode = ({ data, isConnectable }: any) => (
   <div className="w-full h-full relative">
     <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
@@ -24,6 +25,7 @@ const CustomNode = ({ data, isConnectable }: any) => (
   </div>
 );
 
+// --- 子組件：群組區塊節點 ---
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
     <NodeResizer 
@@ -41,7 +43,37 @@ const GroupNode = ({ data, selected }: NodeProps) => (
   </>
 );
 
-const nodeTypes = { custom: CustomNode, group: GroupNode };
+// --- 🚀 新增子組件：時間分流節點 ---
+const TimeRouterNode = ({ data, isConnectable }: any) => (
+  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative transition-all duration-300">
+    {/* 接收上一步的輸入點 */}
+    <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+    
+    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1">
+      <Clock size={16} className="text-indigo-400" />
+      <span>{data.nodeName || '時間條件分流'}</span>
+    </div>
+    
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
+      {data.config?.forceOffHours ? (
+         <span className="text-rose-400">🚨 強制下班模式 (開啟)</span>
+      ) : (
+         `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`
+      )}
+    </div>
+
+    {/* 兩個分流輸出點 */}
+    <Handle type="source" position={Position.Bottom} id="business" isConnectable={isConnectable} style={{ left: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+    <Handle type="source" position={Position.Bottom} id="off-hours" isConnectable={isConnectable} style={{ left: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
+
+    {/* 標示文字 */}
+    <div className="absolute -bottom-6 left-[15%] text-[10px] font-black text-emerald-400 drop-shadow-md">營業中</div>
+    <div className="absolute -bottom-6 left-[55%] text-[10px] font-black text-rose-400 drop-shadow-md">非營業</div>
+  </div>
+);
+
+// 註冊所有節點類型
+const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
 
 function FlowContent() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -71,12 +103,11 @@ function FlowContent() {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
         const data = d.data();
+        
+        // 處理群組節點
         if (data.messageType === 'group_box') {
           return {
-            id: d.id,
-            type: 'group',
-            position: data.position || { x: 0, y: 0 },
-            style: { width: data.width || 400, height: data.height || 300 },
+            id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 },
             data: { 
                 title: data.nodeName, 
                 color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5',
@@ -85,6 +116,17 @@ function FlowContent() {
             zIndex: -1,
           };
         }
+
+        // 🚀 處理新增的時間分流節點
+        if (data.messageType === 'time_router') {
+          return {
+            id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 },
+            parentNode: data.parentNode || undefined,
+            data: { nodeName: data.nodeName, config: data.config }
+          };
+        }
+
+        // 處理一般訊息節點
         const isStart = data.nodeName === '預設回覆'; 
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
@@ -115,10 +157,16 @@ function FlowContent() {
       setEdges(snap.docs.map(d => {
         const data = d.data();
         const arrowDir = data.arrowDirection || 'forward';
-        const markerConfig = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
+        
+        // 如果是從時間分流節點連出來的，根據來源給予不同顏色
+        let edgeColor = data.color || '#deff9a';
+        if (data.sourceHandle === 'business') edgeColor = '#34d399'; // emerald-400
+        if (data.sourceHandle === 'off-hours') edgeColor = '#fb7185'; // rose-400
+
+        const markerConfig = { type: MarkerType.ArrowClosed, color: edgeColor };
         return { 
           id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: data.pathType || 'smoothstep', animated: data.dashed !== false, 
-          style: { stroke: data.color || '#deff9a', strokeWidth: data.strokeWidth || 2, strokeDasharray: data.dashed ? '5 5' : '' },
+          style: { stroke: edgeColor, strokeWidth: data.strokeWidth || 2, strokeDasharray: data.dashed ? '5 5' : '' },
           markerEnd: (arrowDir === 'forward' || arrowDir === 'both') ? markerConfig : undefined,
           markerStart: (arrowDir === 'backward' || arrowDir === 'both') ? markerConfig : undefined,
         };
@@ -134,17 +182,23 @@ function FlowContent() {
 
   const addNewNode = async () => {
     const { x, y, zoom } = getViewport();
-    const centerX = (window.innerWidth / 2 - x) / zoom;
-    const centerY = (window.innerHeight / 2 - y) / zoom;
-    await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: centerX - 100, y: centerY - 40 }, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() });
   };
 
   const addGroupBox = async () => {
     const { x, y, zoom } = getViewport();
-    const centerX = (window.innerWidth / 2 - x) / zoom;
-    const centerY = (window.innerHeight / 2 - y) / zoom;
+    await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() });
+  };
+
+  // 🚀 新增：建立時間分流節點的方法
+  const addTimeRouterNode = async () => {
+    const { x, y, zoom } = getViewport();
     await addDoc(collection(db, "flowRules"), { 
-        nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: centerX - 200, y: centerY - 150 }, updatedAt: serverTimestamp() 
+      nodeName: "時間條件分流", 
+      messageType: "time_router", 
+      config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false },
+      position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, 
+      updatedAt: serverTimestamp() 
     });
   };
 
@@ -161,10 +215,7 @@ function FlowContent() {
         const nodeSnaps = await getDocs(collection(db, "flowRules"));
         const edgeSnaps = await getDocs(collection(db, "flowEdges"));
         await addDoc(collection(db, "flowSnapshots"), {
-            name: saveName.trim(),
-            nodes: nodeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
-            edges: edgeSnaps.docs.map(d => ({ id: d.id, ...d.data() })),
-            createdAt: serverTimestamp()
+            name: saveName.trim(), nodes: nodeSnaps.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeSnaps.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp()
         });
         setShowSaveModal(false);
         alert("✅ 版本已成功存檔！");
@@ -205,6 +256,12 @@ function FlowContent() {
 
       <div className="absolute top-8 left-8 z-10 flex flex-col gap-3">
           <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-transform"><Plus size={20} /> ADD NODE</button>
+          
+          {/* 🚀 新增時間分流節點的按鈕 */}
+          <button onClick={addTimeRouterNode} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-indigo-400 hover:scale-105 transition-all">
+            <Clock size={20} /> TIME ROUTER
+          </button>
+
           <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 transition-all border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
           <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30 shadow-lg' : 'bg-slate-900/50 text-slate-500 border-transparent hover:bg-slate-800'}`}><Magnet size={14}/> 磁吸對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
           <div className="h-px bg-white/5 my-2 w-full"></div>
@@ -213,7 +270,7 @@ function FlowContent() {
       </div>
 
       {showSnapshots && (
-          <div className="absolute top-56 left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+          <div className="absolute top-64 left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
               <div className="p-4 bg-slate-800/50 border-b border-white/5 flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest tracking-tighter">SAVED VERSIONS</span>
                   <button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button>
@@ -251,19 +308,15 @@ function FlowContent() {
         onNodeDragStop={async (_, n) => { 
             if (n.type === 'group') {
                 const up: any = { position: n.position };
-                up.width = n.width || n.style?.width;
-                up.height = n.height || n.style?.height;
+                up.width = n.width || n.style?.width; up.height = n.height || n.style?.height;
                 await updateDoc(doc(db, "flowRules", n.id), up); 
             } else {
-                const absX = n.positionAbsolute?.x || n.position.x;
-                const absY = n.positionAbsolute?.y || n.position.y;
-                const centerX = absX + 100;
-                const centerY = absY + 40;
+                const absX = n.positionAbsolute?.x || n.position.x; const absY = n.positionAbsolute?.y || n.position.y;
+                const centerX = absX + 100; const centerY = absY + 40;
                 const targetGroup = nodes.find(g => {
                     if (g.type !== 'group') return false;
                     const gX = g.position.x; const gY = g.position.y;
-                    const gW = parseInt(g.style?.width as string) || 400;
-                    const gH = parseInt(g.style?.height as string) || 300;
+                    const gW = parseInt(g.style?.width as string) || 400; const gH = parseInt(g.style?.height as string) || 300;
                     return centerX >= gX && centerX <= gX + gW && centerY >= gY && centerY <= gY + gH;
                 });
                 if (targetGroup) {
