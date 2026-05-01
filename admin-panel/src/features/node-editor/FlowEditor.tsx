@@ -14,20 +14,15 @@ import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe
 
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
-    @keyframes smoothGlow {
-      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
-      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
-      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
-    }
-    @keyframes flowEnergy { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+    @keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } }
     .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
     .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
-    .edge-visited path { stroke: #38bdf8 !important; stroke-width: 5px !important; stroke-dasharray: 12 12 !important; animation: flowEnergy 0.8s linear infinite !important; filter: drop-shadow(0 0 6px rgba(56,189,248,0.8)) !important; }
+    .edge-visited path { stroke: #38bdf8 !important; stroke-width: 5px !important; stroke-dasharray: 12 12 !important; }
   `}} />
 );
 
 const CustomNode = ({ data, isConnectable }: any) => {
-  const options = data.options || [];
+  const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
@@ -37,7 +32,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
-          {data.label}
+          {data.label || data.nodeName}
         </div>
         <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>{data.messageType}</div>
       </div>
@@ -56,22 +51,20 @@ const CustomNode = ({ data, isConnectable }: any) => {
 
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
-    <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} handleClassName="w-3 h-3 bg-white border-2 border-[#deff9a] rounded-full" />
+    <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} />
     <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(0,0,0,0.3)] border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '未命名區塊'}</div>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '區塊'}</div>
     </div>
   </>
 );
 
 const TimeRouterNode = ({ data, isConnectable }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative transition-all duration-300">
-    <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName || '時間條件分流'}</span></div>
-    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
-      {data.config?.forceOffHours ? <span className="text-rose-400">🚨 強制下班模式 (開啟)</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
-    </div>
-    <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
-    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
+  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300">
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
+    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
+    <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 !right-[-10px]" />
   </div>
 );
 
@@ -101,10 +94,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
     switch(type) {
-      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-      default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100';
+      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100';
+      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100';
+      default: return 'bg-blue-900/80 border-blue-500 text-blue-100';
     }
   };
 
@@ -115,7 +108,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         if (data.messageType === 'group_box') {
           return {
             id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 },
-            data: { title: data.nodeName, color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' },
+            data: { title: data.nodeName, customLabel: data.customLabel, color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' },
             zIndex: -1,
           };
         }
@@ -124,7 +117,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         }
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined,
-          data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
+          data: { label: data.nodeName || '新節點', nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
           className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`
         };
       }));
@@ -133,74 +126,47 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       setEdges(snap.docs.map(d => {
         const data = d.data();
         let edgeColor = data.color || '#deff9a';
-        if (data.sourceHandle === 'business') edgeColor = '#34d399';
-        if (data.sourceHandle === 'off-hours') edgeColor = '#fb7185';
-        if (data.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
-        return { id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: data.pathType || 'smoothstep', animated: data.dashed !== false, style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: data.dashed ? '5 5' : '' }, markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor } };
+        return { id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: 'smoothstep', animated: true, style: { stroke: edgeColor, strokeWidth: 2 } };
       }));
     });
-    const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubSchedule = onSnapshot(query(collection(db, "scheduled_releases"), where("status", "==", "pending")), (snap) => {
-      if (!snap.empty) setPendingSchedule({ id: snap.docs[0].id, ...snap.docs[0].data() }); else setPendingSchedule(null);
-    });
-    return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
+    return () => { unsubNodes(); unsubEdges(); };
   }, []);
 
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
-            const cleanClass = (n.className || '').replace(/node-current-glow/g, '').replace(/node-visited/g, '').trim();
             const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
             const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
-            if (isCurrent) return { ...n, className: `${cleanClass} node-current-glow` };
-            if (isVisited) return { ...n, className: `${cleanClass} node-visited` };
-            return { ...n, className: cleanClass };
+            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            return { ...n, className: clean };
         }));
-
-        setEdges(eds => eds.map(e => {
-            const isEdgeVisited = activePath.edges.includes(e.id);
-            return { ...e, className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
-        }));
+        setEdges(eds => eds.map(e => ({ ...e, className: activePath.edges.includes(e.id) ? 'edge-visited' : '' })));
     }
   }, [activePath]); 
 
-  const addNewNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
-  const addGroupBox = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
-  const addTimeRouterNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
-  const handleOpenSaveModal = () => { setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`); setShowSaveModal(true); };
-  const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
-  const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
-  const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
-  const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
-  
   const executePublish = async () => { 
-    if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
-    if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
+    if (!window.confirm("⚠️ 確定要將目前畫布配置 1:1 發布到正式機嗎？")) return; 
     setIsPublishing(true); 
     try { 
       const flowObject = reactFlowInstance.toObject();
-      
-      const nodesToPublish = flowObject.nodes.map(n => {
-        // 🚀 強制座標絕對化，避免父子偏移
-        const clean: any = {
-          id: n.id,
-          position: n.positionAbsolute || n.position,
-          type: n.type,
-          data: JSON.parse(JSON.stringify(n.data)),
-          width: n.width || (n.style?.width ? parseInt(n.style.width as string) : null),
-          height: n.height || (n.style?.height ? parseInt(n.style.height as string) : null),
-          parentNode: null // 拋棄層級關係，直接依賴絕對座標
-        };
-        // 額外確保 messageType 存在
-        if (n.data?.messageType) clean.messageType = n.data.messageType;
-        if (n.data?.nodeName) clean.nodeName = n.data.nodeName;
-        return clean;
-      });
+      const nodesToPublish = flowObject.nodes.map(n => ({
+        id: n.id,
+        // 🚀 關鍵：絕對座標打平，解決監測畫面錯位
+        position: n.positionAbsolute || n.position, 
+        type: n.type || 'custom',
+        data: JSON.parse(JSON.stringify(n.data)),
+        width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
+        height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
+        messageType: n.data?.messageType || 'text',
+        nodeName: n.data?.nodeName || n.data?.label || 'Node',
+        customLabel: n.data?.customLabel || "",
+        parentNode: null // 發布時拋棄層級，改用絕對座標
+      }));
 
       const edgesToPublish = flowObject.edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
+        id: e.id, source: e.source, target: e.target,
         sourceHandle: e.sourceHandle || null,
         targetHandle: e.targetHandle || null,
         color: (e.style?.stroke as string) || '#deff9a'
@@ -211,12 +177,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         edges: edgesToPublish, 
         viewport: flowObject.viewport, 
         publishedAt: serverTimestamp(),
-        publisher: "Roger" 
+        publisher: "Roger"
       }); 
-
-      alert("🚀 發布成功！正式環境配置已 1:1 同步。"); 
+      alert("🚀 發布成功！正式環境已達成像素級還原。"); 
     } catch (e: any) { 
-      console.error("❌ 發布失敗原因:", e);
       alert(`發布失敗：${e.message}`); 
     } finally { 
       setIsPublishing(false); 
@@ -226,77 +190,19 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   return (
     <>
       <CustomStyles />
-      {pendingSchedule && (
-        <div className="absolute top-0 left-0 w-full bg-indigo-600 text-white text-xs font-bold py-2.5 flex justify-center items-center gap-6 z-[60] shadow-lg animate-in slide-in-from-top">
-            <span className="flex items-center gap-2"><Clock size={14} className="animate-pulse"/> 系統已排程於 <span className="text-[#deff9a] text-sm tracking-wide">{pendingSchedule.triggerTime?.toDate ? pendingSchedule.triggerTime.toDate().toLocaleString() : new Date(pendingSchedule.triggerTime).toLocaleString()}</span> 發布新版本</span>
-            <button onClick={cancelSchedule} className="bg-slate-900/40 hover:bg-slate-900 px-4 py-1.5 rounded-lg text-[10px] transition-colors border border-white/20 flex items-center gap-1"><X size={12}/> 取消排程</button>
-        </div>
-      )}
-      {showScheduleModal && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl animate-in zoom-in-95">
-            <div><h3 className="font-black text-indigo-400 text-lg flex items-center gap-2"><CalendarClock size={18} /> 排程發布時間</h3><p className="text-xs text-slate-400 mt-1">系統將把目前的畫布設定打包，於指定時間自動覆蓋至正式機。</p></div>
-            <div className="flex gap-3"><input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="flex-[3] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" /><input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="flex-[2] bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-indigo-400 text-sm [color-scheme:dark]" /></div>
-            <div className="flex gap-3 mt-2"><button onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300 transition-colors">取消</button><button onClick={executeSchedulePublish} disabled={isScheduling} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs shadow-lg transition-colors">{isScheduling ? "處理中..." : "確認排程"}</button></div>
-          </div>
-        </div>
-      )}
-      {showSaveModal && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
-            <div><h3 className="font-black text-[#deff9a] text-lg flex items-center gap-2"><Save size={18} /> 儲存版本</h3><p className="text-xs text-slate-400">輸入存檔名稱：</p></div>
-            <input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="w-full bg-slate-800 text-white rounded-xl px-4 py-3 outline-none focus:ring-1 ring-[#deff9a]" autoFocus />
-            <div className="flex gap-3"><button onClick={() => setShowSaveModal(false)} className="flex-1 py-3 bg-slate-800 rounded-xl text-xs font-bold text-slate-300">取消</button><button onClick={executeSave} disabled={isSaving} className="flex-1 py-3 bg-[#deff9a] text-black font-black rounded-xl text-xs">{isSaving ? "處理中" : "儲存"}</button></div>
-          </div>
-        </div>
-      )}
-      <div className={`absolute left-8 z-10 flex flex-col gap-3 transition-all duration-300 ${pendingSchedule ? 'top-16' : 'top-8'}`}>
-          <button onClick={executePublish} disabled={isPublishing || isScheduling} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-[0_0_30px_rgba(225,29,72,0.4)] font-black tracking-widest flex items-center justify-center gap-2 hover:bg-rose-500 border-2 border-rose-400 transition-all hover:scale-105 active:scale-95"><Rocket size={20} className={isPublishing ? 'animate-bounce' : ''} /> {isPublishing ? '發布中...' : '立即發布正式機'}</button>
-          <button onClick={() => setShowScheduleModal(true)} disabled={isPublishing || isScheduling || pendingSchedule !== null} className={`text-white px-6 py-3 rounded-2xl font-black tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${pendingSchedule ? 'bg-slate-800 border-slate-700 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-400 shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:bg-indigo-500 hover:scale-105 active:scale-95'} mb-2`}><CalendarClock size={20} /> {pendingSchedule ? '已有排程等候中' : '預定排程發布'}</button>
-          <button onClick={addNewNode} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Plus size={20} /> ADD NODE</button>
-          <button onClick={addTimeRouterNode} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:scale-105"><Clock size={20} /> TIME ROUTER</button>
-          <button onClick={addGroupBox} className="bg-white/10 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 border border-white/10"><BoxSelect size={20} /> ADD GROUP</button>
-          <button onClick={() => setSnapToGrid(!snapToGrid)} className={`px-4 py-2 rounded-xl text-xs font-bold flex justify-center gap-2 border ${snapToGrid ? 'bg-slate-800 text-[#deff9a] border-[#deff9a]/30' : 'bg-slate-900/50 text-slate-500 border-transparent hover:bg-slate-800'}`}><Magnet size={14}/> 對齊 {snapToGrid ? 'ON' : 'OFF'}</button>
-          <div className="h-px bg-white/5 my-2 w-full"></div>
-          <button onClick={handleOpenSaveModal} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex justify-center gap-2 hover:bg-blue-500"><Save size={14}/> 儲存草稿版本</button>
-          <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex justify-center gap-2 hover:bg-slate-700"><History size={14}/> 歷史紀錄</button>
+      <div className="absolute left-8 top-8 z-10 flex flex-col gap-3">
+          <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-black tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all"><Rocket size={20} /> {isPublishing ? '發布中...' : '立即發布正式機'}</button>
+          <button onClick={() => reactFlowInstance.addNodes({ id: `node_${Date.now()}`, type: 'custom', position: { x: 100, y: 100 }, data: { label: '新節點', messageType: 'text' } })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black">+ ADD NODE</button>
       </div>
-      {showSnapshots && (
-          <div className={`absolute left-8 z-50 w-72 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${pendingSchedule ? 'top-[480px]' : 'top-[440px]'}`}>
-              <div className="p-4 bg-slate-800/50 border-b flex justify-between"><span className="text-[10px] font-black text-slate-400">SAVED VERSIONS</span><button onClick={() => setShowSnapshots(false)}><X size={14} className="text-slate-500"/></button></div>
-              <div className="max-h-80 overflow-y-auto p-2">
-                  {snapshots.map(snap => (<div key={snap.id} className="p-3 bg-slate-950/50 hover:bg-slate-800 rounded-xl mb-1 cursor-pointer flex justify-between" onClick={() => loadSnapshot(snap)}><div className="flex flex-col"><span className="text-xs text-white truncate max-w-[160px]">{snap.name}</span></div><Download size={14} className="text-[#deff9a]"/></div>))}
-              </div>
-          </div>
-      )}
-      <ReactFlow 
-        nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
-        defaultViewport={initialViewport.current}
-        onMoveEnd={(_, v) => localStorage.setItem('flow-viewport', JSON.stringify(v))}
-        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} 
-        onEdgeUpdate={useCallback(async (o: Edge, n: Connection) => { try { await updateDoc(doc(db, "flowEdges", o.id), { source: n.source, target: n.target, sourceHandle: n.sourceHandle, targetHandle: n.targetHandle }); } catch(e){} }, [])}
-        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, color: '#deff9a', strokeWidth: 2, dashed: true, arrowDirection: 'forward', createdAt: serverTimestamp() }); }, [])} 
-        onNodesDelete={useCallback(async (dn: Node[]) => { for (const n of dn) await deleteDoc(doc(db, "flowRules", n.id)); }, [])} 
-        onEdgesDelete={useCallback(async (de: Edge[]) => { for (const e of de) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])} 
-        onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }} onPaneClick={() => { setActivePanel(null); setSelectedId(null); }} 
-        onNodeDragStop={async (_, n) => { 
-            if (n.type === 'group') { await updateDoc(doc(db, "flowRules", n.id), { position: n.position, width: n.width || n.style?.width, height: n.height || n.style?.height }); } 
-            else {
-                const absX = n.positionAbsolute?.x || n.position.x; const absY = n.positionAbsolute?.y || n.position.y;
-                const tg = nodes.find(g => { if(g.type !== 'group') return false; const gX = g.position.x; const gY = g.position.y; const gW = parseInt(g.style?.width as string)||400; const gH = parseInt(g.style?.height as string)||300; return absX+100>=gX && absX+100<=gX+gW && absY+40>=gY && absY+40<=gY+gH; });
-                if (tg) await updateDoc(doc(db, "flowRules", n.id), { parentNode: tg.id, position: { x: absX - tg.position.x, y: absY - tg.position.y } });
-                else await updateDoc(doc(db, "flowRules", n.id), { parentNode: deleteField(), position: { x: absX, y: absY } });
-            }
-        }} 
-        connectionMode={ConnectionMode.Loose} snapToGrid={snapToGrid} snapGrid={[20, 20]}
-      >
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} connectionMode={ConnectionMode.Loose} onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))} onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }} onPaneClick={() => setActivePanel(null)}>
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
       </ReactFlow>
-      <div className={`absolute right-0 top-0 h-full transition-all duration-500 z-50 ${activePanel ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
-        {activePanel === 'node' && <NodeEditPanel nodeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
-        {activePanel === 'edge' && <EdgeEditPanel edgeId={selectedId} onClose={() => { setActivePanel(null); setSelectedId(null); }} />}
-      </div>
+      {activePanel === 'node' && (
+        <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right">
+          <NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} />
+        </div>
+      )}
     </>
   );
 }
