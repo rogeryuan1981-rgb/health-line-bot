@@ -9,7 +9,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Globe, AlertTriangle, Flag, Clock } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 關鍵修復 1：直接複製編輯器的視覺 CSS 與元件邏輯，並強行鎖死 Handle 顯示
+// 🚀 注入 100% 同步編輯器的 CSS 特效
 const CustomStylesProd = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -17,13 +17,13 @@ const CustomStylesProd = () => (
       50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
       100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
-    .node-prod-custom { animation: smoothGlow 2.5s ease-in-out infinite !important; }
-    /* 🚀 強制讓 Handle 在唯讀模式下也能正確被連線系統定位，但不顯示圓點 */
-    .react-flow__handle { opacity: 0 !important; }
+    .node-prod-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; }
+    .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
   `}} />
 );
 
-// 🚀 關鍵修復 2：重新實作 NodeTypes，確保結構與編輯器 100% 對齊 (包含 Handle)
+// --- 🚀 完美克隆：視覺組件區 ---
+
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
@@ -63,7 +63,7 @@ const TimeRouterNodeProd = ({ data }: any) => (
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
     <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
-      {data.config?.forceOffHours ? <span className="text-rose-400 font-black italic">🚨 FORCE OFF</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
+      {data.config?.forceOffHours ? <span className="text-rose-400 font-black italic text-[9px]">🚨 FORCE OFF</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
     </div>
     <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} isConnectable={false} />
     <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} isConnectable={false} />
@@ -71,6 +71,8 @@ const TimeRouterNodeProd = ({ data }: any) => (
 );
 
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
+
+// --- 🚀 邏輯主體 ---
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -96,10 +98,25 @@ function ProductionCanvas() {
         const flowNodes = (data.nodes || []).map((n: any) => {
           const base = { id: n.id, position: n.position, draggable: false, selectable: true };
           if (n.messageType === 'group_box') {
-            return { ...base, type: 'group', style: { width: n.width || 400, height: n.height || 300 }, data: { title: n.nodeName, color: n.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : n.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', labelColor: n.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : n.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' }, zIndex: -1 };
+            return { 
+              ...base, 
+              type: 'group', 
+              style: { width: n.width || 400, height: n.height || 300 }, 
+              data: { 
+                title: n.nodeName, 
+                color: n.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : n.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', 
+                labelColor: n.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : n.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' 
+              }, 
+              zIndex: -1 
+            };
           }
           if (n.messageType === 'time_router') return { ...base, type: 'timeRouter', data: { ...n } };
-          return { ...base, type: 'custom', data: { ...n, label: n.nodeName }, className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(n.messageType, n.nodeName === '預設回覆')}` };
+          return { 
+            ...base, 
+            type: 'custom', 
+            data: { ...n, label: n.nodeName }, 
+            className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(n.messageType, n.nodeName === '預設回覆')}` 
+          };
         });
 
         setNodes(flowNodes);
@@ -108,7 +125,16 @@ function ProductionCanvas() {
             if (e.sourceHandle === 'business') edgeColor = '#34d399';
             if (e.sourceHandle === 'off-hours') edgeColor = '#fb7185';
             if (e.sourceHandle?.startsWith('opt_')) edgeColor = '#60a5fa';
-            return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, animated: true, style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: '5 5' }, markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor } };
+            return { 
+                id: e.id, 
+                source: e.source, 
+                target: e.target, 
+                sourceHandle: e.sourceHandle, 
+                targetHandle: e.targetHandle, 
+                animated: true, 
+                style: { stroke: edgeColor, strokeWidth: 2, strokeDasharray: '5 5' }, 
+                markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor } 
+            };
         }));
         setStats({ nodes: flowNodes.length, lastDate: data.publishedAt?.toDate ? data.publishedAt.toDate().toLocaleString() : '未知' });
       }
@@ -123,23 +149,23 @@ function ProductionCanvas() {
     <div className="flex flex-col h-full bg-[#020617] overflow-hidden">
       <CustomStylesProd />
       
-      {/* 🚀 關鍵修復 3：儀表板改為「左側懸浮」模式，絕對不會橫切擋住右上角 */}
-      <div className="absolute top-6 left-6 z-20 flex flex-col gap-2">
-        <div className="bg-slate-900/90 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4">
-            <div className="bg-rose-500 p-2 rounded-lg shadow-lg shadow-rose-500/20"><ShieldCheck className="text-white" size={20} /></div>
+      {/* 🚀 修復：改為絕對定位的半透明懸浮小卡片，確保不遮擋右上角 Roger 帳號資訊 */}
+      <div className="absolute top-4 left-6 z-30 flex flex-col gap-2 pointer-events-none">
+        <div className="bg-slate-900/80 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 pointer-events-auto">
+            <div className="bg-rose-500 p-1.5 rounded-lg shadow-lg shadow-rose-500/20"><ShieldCheck className="text-white" size={18} /></div>
             <div>
-                <h1 className="text-sm font-black text-white italic tracking-widest leading-tight uppercase">Production Live</h1>
-                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">{stats.lastDate}</p>
+                <h1 className="text-[11px] font-black text-white italic tracking-widest leading-tight uppercase">Production Live</h1>
+                <p className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">{stats.lastDate}</p>
             </div>
-            <div className="h-6 w-px bg-white/10 mx-2" />
+            <div className="h-6 w-px bg-white/10 mx-1" />
             <div className="text-right">
-                <div className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Nodes</div>
-                <div className="text-lg font-black text-white leading-none">{stats.nodes}</div>
+                <div className="text-[8px] font-black text-rose-500 uppercase tracking-widest leading-none">Online</div>
+                <div className="text-sm font-black text-white">{stats.nodes}</div>
             </div>
         </div>
-        <div className="bg-rose-500/10 border border-rose-500/30 px-4 py-2 rounded-xl flex items-center gap-2">
-            <AlertTriangle size={12} className="text-rose-500 animate-pulse" />
-            <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">ReadOnly Monitor Mode</span>
+        <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit">
+            <AlertTriangle size={10} className="text-rose-500 animate-pulse" />
+            <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Monitor Mode</span>
         </div>
       </div>
 
