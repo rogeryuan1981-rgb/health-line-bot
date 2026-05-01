@@ -69,7 +69,7 @@ const GroupNodeProd = ({ data }: any) => {
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" />
-    <div className="font-black text-sm flex items-center gap-2 mb-1"><Clock size={16} className="text-indigo-400" />{data.nodeName}</div>
+    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
     <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} />
     <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} />
@@ -93,7 +93,7 @@ function ProductionCanvas() {
           const base: any = {
             id: n.id,
             position: n.position,
-            type: n.type === 'group' ? 'group' : (n.messageType === 'time_router' ? 'timeRouter' : 'custom'),
+            type: n.type || 'custom',
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
@@ -102,8 +102,10 @@ function ProductionCanvas() {
           }
           return base;
         });
+
         setNodes(processedNodes);
         setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 3 } })));
+
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 500);
