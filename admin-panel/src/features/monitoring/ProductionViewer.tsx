@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
-  Background, BackgroundVariant, Node, Edge, MarkerType,
+  Background, BackgroundVariant, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow, Controls
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -9,7 +9,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 核心修正 4：移除了 opacity: 0，您的綠色小圓點回來了！
+// 🚀 核心修正 1：移除了隱藏 Handle 的 CSS，讓綠色小圓點回來
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     .react-flow__handle { pointer-events: none !important; cursor: default !important; }
@@ -17,6 +17,7 @@ const GlobalProdStyles = () => (
   `}} />
 );
 
+// 🚀 與編輯器 1:1 的顏色與透明度邏輯
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -39,11 +40,11 @@ const CustomNodeProd = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.nodeName}
         </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/60 border border-white/10`}>{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
+          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
@@ -69,7 +70,7 @@ const GroupNodeProd = ({ data }: any) => {
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
-    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
+    <div className="font-black text-sm flex items-center justify-center gap-2 mb-1 w-full"><Clock size={16} className="text-indigo-400" />{data.nodeName}</div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
     <Handle type="source" position={Position.Right} id="business" isConnectable={false} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
     <Handle type="source" position={Position.Right} id="off-hours" isConnectable={false} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
@@ -91,9 +92,7 @@ function ProductionCanvas() {
         const raw = snap.data();
         const processedNodes = (raw.nodes || []).map((n: any) => {
           const base: any = {
-            id: n.id,
-            position: n.position,
-            type: n.type,
+            id: n.id, position: n.position, type: n.type,
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
@@ -105,12 +104,13 @@ function ProductionCanvas() {
 
         setNodes(processedNodes);
         
-        // 🚀 核心修正 5：忠實讀取發布過來的邊線設定 (不再硬寫 smoothstep)
+        // 🚀 核心修正 2：忠實讀取發布過來的連線設定（包含箭頭 markerStart/End）
         setEdges((raw.edges || []).map((e: any) => ({ 
             ...e, 
             animated: e.animated || true, 
             style: e.style || { stroke: '#deff9a', strokeWidth: 2 },
-            markerEnd: e.markerEnd || { type: MarkerType.ArrowClosed, color: '#deff9a' }
+            markerStart: e.markerStart || null,
+            markerEnd: e.markerEnd || null
         })));
 
         if (!initRef.current && raw.viewport) {
