@@ -164,6 +164,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
+  // 🚀 接回路徑高亮邏輯
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
@@ -191,18 +192,22 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 終極修正：發布邏輯
+  // 🚀 核心發布邏輯：強化穩定性與座標絕對化
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
+    
     setIsPublishing(true); 
     try { 
-      // 🚀 直接從狀態變數抓取數據，並手動抓取 Viewport
-      const viewport = reactFlowInstance.getViewport();
+      // 🚀 使用 reactFlowInstance 直接獲取最新的資料
+      const flowObject = reactFlowInstance.toObject();
+      const currentNodes = flowObject.nodes;
+      const currentEdges = flowObject.edges;
+      const currentViewport = flowObject.viewport;
 
-      const nodesToPublish = nodes.map(n => ({
+      const nodesToPublish = currentNodes.map(n => ({
         id: n.id,
-        // 🚀 關鍵修正：存入畫布上的絕對座標
+        // 🚀 確保存入絕對座標，修復監測畫面分家的問題
         position: n.positionAbsolute || n.position, 
         type: n.type,
         data: n.data,
@@ -214,7 +219,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         customLabel: n.data.customLabel || ""
       }));
 
-      const edgesToPublish = edges.map(e => ({
+      const edgesToPublish = currentEdges.map(e => ({
         id: e.id,
         source: e.source,
         target: e.target,
@@ -223,17 +228,19 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         color: e.style?.stroke || '#deff9a'
       }));
 
+      // 🚀 正式寫入 Firestore
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
         edges: edgesToPublish, 
-        viewport: viewport, // 🚀 儲存縮放比例與視角位置
+        viewport: currentViewport, 
         publishedAt: serverTimestamp(),
-        publisher: "Roger"
+        publisher: "Roger" 
       }); 
-      alert("🚀 發布成功！正式環境配置已 1:1 同步完成！"); 
+
+      alert("🚀 發布成功！正式環境已同步最新 1:1 配置。"); 
     } catch (e) { 
-      console.error("發布出錯：", e);
-      alert("發布失敗，請重試"); 
+      console.error("❌ 發布失敗詳細原因:", e);
+      alert("發布失敗，請確認網路連線或按 F12 查看 Console 報錯。"); 
     } finally { 
       setIsPublishing(false); 
     } 
