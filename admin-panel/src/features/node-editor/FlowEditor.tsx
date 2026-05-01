@@ -5,7 +5,7 @@ import ReactFlow, {
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
@@ -19,12 +19,22 @@ const CustomStyles = () => (
   `}} />
 );
 
+const getNodeStyle = (type: string, isStart: boolean) => {
+  if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
+  switch(type) {
+    case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+    case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+    case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+    default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+  }
+};
+
 const CustomNode = ({ data, isConnectable }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
   return (
-    <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
-      <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50" />
+    <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
+      <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
@@ -38,31 +48,37 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900" />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900" />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />}
     </div>
   );
 };
 
-const GroupNode = ({ data, selected }: NodeProps) => (
-  <>
-    <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} />
-    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '區塊'}</div>
-    </div>
-  </>
-);
+const GroupNode = ({ data, selected }: NodeProps) => {
+  const isDone = data.customLabel === '已完成';
+  const isTodo = data.customLabel === '待處理';
+  const bgColor = isDone ? 'bg-emerald-500/5 border-emerald-500/50' : isTodo ? 'bg-amber-500/5 border-amber-500/50' : 'bg-blue-500/5 border-blue-500/30';
+  const labelColor = isDone ? 'bg-emerald-600 text-white border-emerald-400' : isTodo ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400';
+  return (
+    <>
+      <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} />
+      <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${bgColor}`}>
+        <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data.title || '區塊'}</div>
+      </div>
+    </>
+  );
+};
 
 const TimeRouterNode = ({ data, isConnectable }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
-    <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 !left-[-10px]" />
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
     <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
-    <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 !right-[-10px]" />
-    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
   </div>
 );
 
@@ -82,16 +98,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
-  const getNodeStyle = (type: string, isStart: boolean) => {
-    if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
-    switch(type) {
-      case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100';
-      case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100';
-      case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100';
-      default: return 'bg-blue-900/80 border-blue-500 text-blue-100';
-    }
-  };
-
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       setNodes(snap.docs.map(d => {
@@ -99,22 +105,22 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         if (data.messageType === 'group_box') {
           return {
             id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 },
-            data: { title: data.nodeName, color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' }, zIndex: -1,
+            data: { title: data.nodeName, customLabel: data.customLabel }, zIndex: -1,
           };
         }
         if (data.messageType === 'time_router') {
-          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, data: { nodeName: data.nodeName, config: data.config } };
+          return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined,
-          data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
-          className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`
+          data: { label: data.nodeName, nodeName: data.nodeName, messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword }
         };
       }));
     });
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
+        // 🚀 保留原本的 smoothstep 曲線
         return { id: d.id, source: data.source, target: data.target, sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, type: 'smoothstep', animated: true, style: { stroke: data.color || '#deff9a', strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } };
       }));
     });
@@ -135,14 +141,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 關鍵發布區域：顯式指定屬性，徹底解決 undefined 報錯
+  // 🚀 關鍵發布：清除 undefined 並打包絕對座標
   const executePublish = async () => {
-    if (!window.confirm("⚠️ 確定要將目前畫布配置發布到正式機嗎？")) return;
+    if (!window.confirm("⚠️ 確定要發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
       const nodesToPublish = flowObject.nodes.map(n => {
-        // 清洗 data，移除所有的 undefined
         const cleanData = JSON.parse(JSON.stringify(n.data, (_, v) => v === undefined ? null : v));
         return {
           id: String(n.id),
@@ -154,33 +159,24 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           messageType: String(n.data?.messageType || 'text'),
           nodeName: String(n.data?.nodeName || n.data?.label || 'Node'),
           customLabel: String(n.data?.customLabel || ""),
-          parentNode: null // 打平層級
+          parentNode: null
         };
       });
 
       const edgesToPublish = flowObject.edges.map(e => ({
-        id: String(e.id),
-        source: String(e.source),
-        target: String(e.target),
+        id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
         targetHandle: e.targetHandle ? String(e.targetHandle) : null,
+        type: 'smoothstep', // 保留曲線設定
         color: String((e.style?.stroke as string) || '#deff9a')
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
-        nodes: nodesToPublish, 
-        edges: edgesToPublish, 
-        viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
-        publishedAt: serverTimestamp(), 
-        publisher: "Roger" 
+        nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
+        publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 1:1 發布成功！");
-    } catch (e: any) { 
-      console.error("發布失敗詳細原因:", e);
-      alert(`發布失敗：${e.message}`); 
-    } finally { 
-      setIsPublishing(false); 
-    }
+      alert("🚀 發布成功！");
+    } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
   const handleSaveDraft = async () => {
@@ -227,6 +223,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
+        onNodesDelete={useCallback(async (dns: Node[]) => { for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id)); }, [])}
+        onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
         onNodeDragStop={async (_, n) => { 
             const payload: any = { position: n.position };
             if (n.type === 'group') { payload.width = n.width; payload.height = n.height; }
@@ -237,16 +235,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <Controls />
       </ReactFlow>
 
-      {activePanel === 'node' && selectedId && (
-        <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right">
-          <NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} />
-        </div>
-      )}
-      {activePanel === 'edge' && selectedId && (
-        <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right">
-          <EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} />
-        </div>
-      )}
+      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
   );
 }
