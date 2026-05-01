@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Plus, Trash2, Library, Maximize2, Minimize2, Smile, Search, Tag, Info, Copy, ChevronDown, ChevronUp, Globe } from 'lucide-react'
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
@@ -13,7 +13,7 @@ const EMOJI_LIST = [
 
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
   const [nodeData, setNodeData] = useState<any>({
-    nodeName: "", customLabel: "", messageType: 'text', cardSize: 'md', 
+    nodeName: "", globalKeyword: "", customLabel: "", messageType: 'text', cardSize: 'md', 
     btnStyle: 'primary', textContent: "", imageUrl: "", imageUrls: [], videoUrl: "", fileUrl: "", 
     buttons: [], cards: []
   });
@@ -48,55 +48,50 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     await updateDoc(doc(db, "flowRules", nodeId), payload);
 
     // ==========================================
-    // 🚀 新增：自動連線與防呆邏輯
+    // 🚀 自動連線與防呆邏輯 (升級：支援動態連接點)
     // ==========================================
     if (nodeData.buttons && nodeData.buttons.length > 0) {
       try {
-        // 取得畫布上所有的節點與現有連線
         const rulesSnap = await getDocs(collection(db, "flowRules"));
         const edgesSnap = await getDocs(collection(db, "flowEdges"));
         
-        // 👉 修正 TS2339：明確加上 : any[] 讓 TypeScript 放行
         const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const allEdges: any[] = edgesSnap.docs.map(d => d.data());
 
-        for (const btn of nodeData.buttons) {
+        // 使用 entries() 取得按鈕的 Index，用來對應 opt_0, opt_1 等輸出點
+        for (const [index, btn] of nodeData.buttons.entries()) {
           const targetKeyword = btn.target?.trim();
           
-          // 若沒設定目標，或目標是網址/電話，則不處理連線
           if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
 
-          // 尋找目標關鍵字相符的節點 (排除自己)
           const matchedNodes = allNodes.filter(n => {
             if (n.id === nodeId) return false;
-            // 處理可能有逗號分隔的關鍵字 (向下相容)
             const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
-            return keywords.includes(targetKeyword);
+            return keywords.includes(targetKeyword) || (n.globalKeyword && n.globalKeyword === targetKeyword);
           });
 
           if (matchedNodes.length > 0) {
-            // ⚠️ 防呆機制：多個節點包含相同關鍵字，跳出警告
             if (matchedNodes.length > 1) {
-              alert(`⚠️ 警告：畫布上有 ${matchedNodes.length} 個節點的關鍵字包含「${targetKeyword}」！\n系統已自動連線至第一個找到的節點，請確認是否有重複設定。`);
+              alert(`⚠️ 警告：畫布上有 ${matchedNodes.length} 個節點符合「${targetKeyword}」！\n已連線至第一個找到的節點。`);
             }
 
             const targetNodeId = matchedNodes[0].id;
+            const dynamicSourceHandle = `opt_${index}`; // 🚀 指派專屬的連接點 ID
 
-            // 檢查是否已經有相同的連線了，避免重複畫線
-            const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId);
+            // 檢查是否已經有相同的連線
+            const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId && e.sourceHandle === dynamicSourceHandle);
 
             if (!edgeExists) {
-              // 建立新的自動連線
               await addDoc(collection(db, "flowEdges"), {
                 source: nodeId,
                 target: targetNodeId,
-                sourceHandle: 'right',
+                sourceHandle: dynamicSourceHandle, // 🚀 綁定到該選項專屬的綠點
                 targetHandle: 'left',
-                color: '#deff9a',
+                color: '#60a5fa', // 改用藍色標示這是按鈕分支連線
                 strokeWidth: 2,
                 dashed: true,
                 arrowDirection: 'forward',
-                pathType: 'smoothstep', // 圓角折線
+                pathType: 'smoothstep',
                 createdAt: serverTimestamp()
               });
             }
@@ -248,6 +243,12 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                   </div>
                 </div>
 
+                {/* 🔥 新增：全域任意門 */}
+                <div className="space-y-1.5 bg-indigo-950/30 p-3 rounded-xl border border-indigo-500/30">
+                  <label className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-1"><Globe size={12}/> 全域關鍵字 (任意門)</label>
+                  <input value={nodeData.globalKeyword || ""} onChange={e => setNodeData({...nodeData, globalKeyword: e.target.value})} className="w-full bg-slate-900/50 text-indigo-100 border-none rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 ring-indigo-400" placeholder="輸入此字將無視流程，直接空降跳轉於此 (選填)" />
+                </div>
+
                 <div className="grid grid-cols-6 gap-1 p-1 bg-slate-900 rounded-lg">
                     {['text', 'image', 'video', 'file', 'flex', 'carousel'].map(t => (
                         <button key={t} onClick={() => setNodeData({...nodeData, messageType: t})} className={`py-2 rounded-md text-[9px] font-bold uppercase transition-all ${nodeData.messageType === t ? 'bg-slate-700 text-[#deff9a]' : 'text-slate-500'}`}>{t}</button>
@@ -327,29 +328,37 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                                 <label className="text-[10px] font-bold text-slate-500 uppercase">卡片內文</label>
                                 <textarea value={nodeData.textContent || ""} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} placeholder="卡片主文字..." className="w-full bg-slate-900 rounded-xl p-4 text-sm outline-none min-h-[80px]" />
                             </div>
-                            <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
-                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                    <div className="flex items-center gap-1">
-                                        <span>按鈕設定 ({nodeData.buttons?.length || 0}/6)</span>
-                                        <div className="group relative flex items-center">
-                                            <Info size={10} className="text-slate-400 cursor-help hover:text-blue-400 transition-colors"/>
-                                            <div className="absolute bottom-full left-0 mb-2 w-52 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case leading-relaxed">
-                                                <span className="text-blue-400 font-bold block mb-1">操作秘訣：</span>
-                                                • <code className="text-[#deff9a]">tel:號碼</code> 撥電話<br/>
-                                                • <code className="text-[#deff9a]">https://...</code> 開網頁 <span className="text-red-400 font-bold">(限 https)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] hover:bg-slate-700 p-1 rounded transition-colors"><Plus size={14}/></button>
+                        </div>
+                    )}
+                </div>
+
+                {/* 🔥 新增：分支路由獨立化 (所有節點皆可用) */}
+                <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-[#deff9a]/20 mt-4 shadow-inner">
+                    <div className="flex justify-between items-center text-[10px] font-black text-[#deff9a] tracking-widest uppercase">
+                        <div className="flex items-center gap-1">
+                            <span>分支路由與選項按鈕 ({nodeData.buttons?.length || 0}/6)</span>
+                            <div className="group relative flex items-center">
+                                <Info size={10} className="text-slate-400 cursor-help hover:text-blue-400 transition-colors"/>
+                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-slate-800 text-slate-300 text-[9px] p-2.5 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 border border-white/10 font-normal normal-case leading-relaxed">
+                                    <span className="text-blue-400 font-bold block mb-1">操作秘訣：</span>
+                                    • 設定後畫布將自動長出對應數量的連線點<br/>
+                                    • <code className="text-[#deff9a]">tel:號碼</code> 撥電話<br/>
+                                    • <code className="text-[#deff9a]">https://...</code> 開網頁
                                 </div>
-                                {nodeData.buttons?.map((btn: any, i: number) => (
-                                    <div key={i} className="flex gap-2 items-center animate-in slide-in-from-right-2 transition-all">
-                                        <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="按鈕文字" className="flex-1 bg-slate-900 rounded p-2 text-xs outline-none ring-1 ring-white/5 focus:ring-blue-400" />
-                                        <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="關鍵字 / tel: / https://" className="flex-[1.5] bg-slate-900 rounded p-2 text-xs outline-none focus:ring-1 ring-blue-400" />
-                                        <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1 hover:bg-red-500/10 rounded-full transition-colors"><Trash2 size={12}/></button>
-                                    </div>
-                                ))}
                             </div>
+                        </div>
+                        <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] bg-slate-900/50 hover:bg-slate-700 p-1.5 rounded transition-colors border border-white/10"><Plus size={14}/></button>
+                    </div>
+                    {nodeData.buttons?.map((btn: any, i: number) => (
+                        <div key={i} className="flex gap-2 items-center animate-in slide-in-from-right-2 transition-all">
+                            <input value={btn.label} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="按鈕顯示文字" className="flex-1 bg-slate-900 rounded-lg p-2 text-xs outline-none ring-1 ring-white/5 focus:ring-blue-400" />
+                            <input value={btn.target} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} placeholder="跳轉關鍵字 / tel: / https://" className="flex-[1.5] bg-slate-900 rounded-lg p-2 text-xs outline-none focus:ring-1 ring-blue-400" />
+                            <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-full transition-colors"><Trash2 size={12}/></button>
+                        </div>
+                    ))}
+                    {(!nodeData.buttons || nodeData.buttons.length === 0) && (
+                        <div className="text-center p-3 text-slate-500 text-[10px] font-bold border border-dashed border-white/10 rounded-lg">
+                           目前無分支，系統將提供單一預設連線點。
                         </div>
                     )}
                 </div>
