@@ -5,7 +5,7 @@ import ReactFlow, {
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, writeBatch, query, orderBy, deleteField } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
@@ -99,11 +99,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         if (data.messageType === 'group_box') {
           return {
             id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 },
-            data: { 
-                title: data.nodeName, 
-                color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', 
-                labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' 
-            }, zIndex: -1,
+            data: { title: data.nodeName, color: data.customLabel === '已完成' ? 'border-emerald-500/50 bg-emerald-500/5' : data.customLabel === '待處理' ? 'border-amber-500/50 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5', labelColor: data.customLabel === '已完成' ? 'bg-emerald-600 text-white border-emerald-400' : data.customLabel === '待處理' ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400' }, zIndex: -1,
           };
         }
         if (data.messageType === 'time_router') {
@@ -125,6 +121,19 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
+
+  useEffect(() => {
+    if (activePath && activePath.nodes.length > 0) {
+        setNodes(nds => nds.map(n => {
+            const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
+            const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
+            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            return { ...n, className: clean };
+        }));
+    }
+  }, [activePath]);
 
   const executePublish = async () => {
     setIsPublishing(true);
@@ -174,7 +183,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <div className="absolute left-8 top-[480px] z-50 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
           <div className="p-3 bg-slate-800 border-b flex justify-between items-center"><span className="text-[10px] font-black text-slate-400">歷史紀錄</span><button onClick={() => setShowSnapshots(false)}><X size={14}/></button></div>
           <div className="max-h-60 overflow-y-auto p-2">
-            {snapshots.map(s => <div key={d.id} className="p-2 hover:bg-slate-800 rounded-lg cursor-pointer text-[10px] text-white flex justify-between items-center mb-1 group"><span>{s.name}</span><Download size={12} className="opacity-0 group-hover:opacity-100 text-emerald-400"/></div>)}
+            {snapshots.map(s => <div key={s.id} className="p-2 hover:bg-slate-800 rounded-lg cursor-pointer text-[10px] text-white flex justify-between items-center mb-1 group"><span>{s.name}</span><Download size={12} className="opacity-0 group-hover:opacity-100 text-emerald-400"/></div>)}
           </div>
         </div>
       )}
@@ -200,8 +209,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         <Controls />
       </ReactFlow>
 
-      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
-      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'node' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
+      {activePanel === 'edge' && selectedId && <div className="absolute right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><EdgeEditPanel edgeId={selectedId} onClose={() => setActivePanel(null)} /></div>}
     </>
   );
 }
