@@ -3,7 +3,7 @@ import ReactFlow, {
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
-} from 'reactflow'; 
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
