@@ -4,7 +4,18 @@ import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs
 import { db } from '../../firebase'
 import LineSimulator from '../simulator/LineSimulator'
 
-// 🚀 新增 Props：isReadOnly (唯讀模式), sourceCollection (資料來源)
+const EMOJI_LIST = [
+  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😮','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','😤','😢','😭','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😇','🤠','🤡','🥳','🥴','🥺','🤥','🤫','🤭','🧐','🤓','👾','🤖','💩',
+  '👋','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👍','👎','✊','👊','👏','🙌','🙏',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','🔥','✨','🌟','☀️','🌙','🌈','☁️','⚡','❄️','💥','💨','💦','🍀','🌸','🍓','🍔','🍺','☕','🎮','辦公室','📱','📧','💬','📞','📌','📍','🔍','📅','💰','🎁','🚀','🏆','👑','💎',
+  '✅','❌','⚠️','🆗','🆙','🆕','🆓','🆘','📢','📣','🔔','🔕','🎵','🎶','💡','💢','💯','💠','🔘','🏁','🚩','⬅️','➡️','⬆️','⬇️','↩️','↪️','◀️','▶️'
+];
+
+const WEEKDAYS = [
+    { id: 1, label: '一' }, { id: 2, label: '二' }, { id: 3, label: '三' },
+    { id: 4, label: '四' }, { id: 5, label: '五' }, { id: 6, label: '六' }, { id: 0, label: '日' }
+];
+
 export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sourceCollection = "flowRules" }: { nodeId: string | null, onClose: () => void, isReadOnly?: boolean, sourceCollection?: string }) {
   const [nodeData, setNodeData] = useState<any>(null);
   const [library, setLibrary] = useState<any[]>([]);
@@ -18,7 +29,6 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
   useEffect(() => {
     if (!nodeId) return;
     const fetch = async () => {
-      // 🚀 根據來源讀取資料 (若是正式機監控，則從快照中提取或直接讀取 production 文件)
       let data: any = null;
       if (sourceCollection === "botConfig/production") {
           const prodSnap = await getDoc(doc(db, "botConfig", "production"));
@@ -49,84 +59,163 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
     const payload = { ...nodeData, updatedAt: serverTimestamp() };
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
+
+    if (nodeData.buttons && nodeData.buttons.length > 0 && nodeData.messageType !== 'time_router') {
+      try {
+        const edgesSnap = await getDocs(collection(db, "flowEdges"));
+        const allEdges = edgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const hasExistingOutEdges = allEdges.some((e: any) => e.source === nodeId);
+
+        if (!hasExistingOutEdges) {
+          const rulesSnap = await getDocs(collection(db, "flowRules"));
+          const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          for (const [index, btn] of nodeData.buttons.entries()) {
+            const targetKeyword = btn.target?.trim();
+            if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
+            const matchedNodes = allNodes.filter(n => {
+              if (n.id === nodeId) return false;
+              const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
+              return keywords.includes(targetKeyword) || (n.isGlobal && n.nodeName === targetKeyword);
+            });
+            if (matchedNodes.length > 0) {
+              const targetNodeId = matchedNodes[0].id;
+              const dynamicSourceHandle = `opt_${index}`;
+              const specificEdgeExists = allEdges.some((e: any) => e.source === nodeId && e.sourceHandle === dynamicSourceHandle);
+              if (!specificEdgeExists) {
+                await addDoc(collection(db, "flowEdges"), {
+                  source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', 
+                  color: '#60a5fa', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp()
+                });
+              }
+            }
+          }
+        }
+      } catch (e) { console.error(e); }
+    }
     setIsSaving(false);
     alert("✅ 配置已儲存！");
   };
 
-  if (!nodeData) return null;
+  const handleDuplicate = async () => {
+    if (!nodeId || isReadOnly) return;
+    setIsSaving(true);
+    const snap = await getDoc(doc(db, "flowRules", nodeId));
+    const currentPos = snap.exists() ? snap.data().position : { x: 100, y: 100 };
+    await addDoc(collection(db, "flowRules"), { ...nodeData, nodeName: `${nodeData.nodeName}_複本`, position: { x: currentPos.x + 40, y: currentPos.y + 40 }, updatedAt: serverTimestamp() });
+    setIsSaving(false);
+    alert("✅ 節點已成功複製！");
+  };
 
+  const renderLibraryDropdown = (onSelect: (url: string) => void) => {
+    const filteredLib = library.filter(item => {
+        let matchType = true;
+        if (libFilter !== 'all') {
+          const t = (item.type || '').toLowerCase(); const u = (item.url || '').toLowerCase();
+          const isVideo = t === 'video' || u.includes('youtube') || u.endsWith('.mp4');
+          const isFile = t === 'file' || u.endsWith('.pdf');
+          if (libFilter === 'video') matchType = isVideo; else if (libFilter === 'file') matchType = isFile; else if (libFilter === 'image') matchType = !isVideo && !isFile;
+        }
+        return (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) && matchType;
+    });
+    return (
+        <div className="bg-slate-800 rounded-xl border border-[#deff9a]/20 mt-2 shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
+            <div className="flex bg-slate-900/50 p-1 border-b border-white/5">{['all', 'image', 'video', 'file'].map((type) => (<button key={type} onClick={() => setLibFilter(type as any)} className={`flex-1 text-[10px] py-1.5 font-bold rounded ${libFilter === type ? 'bg-slate-700 text-[#deff9a]' : 'text-slate-500'}`}>{type === 'all' ? '全部' : type === 'image' ? '圖片' : type === 'video' ? '影片' : '文件'}</button>))}</div>
+            <div className="p-2 bg-slate-900/30 border-b border-white/5 flex items-center gap-2"><Search size={14} className="text-slate-500 ml-1" /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜尋資源庫..." className="bg-transparent border-none text-xs outline-none w-full text-slate-200" /></div>
+            <div className="max-h-48 overflow-y-auto p-2 grid gap-1">{filteredLib.map(item => (<div key={item.id} onClick={() => { onSelect(item.url); setActiveLib(null); }} className="p-2 bg-slate-900 rounded-lg cursor-pointer hover:bg-slate-700 flex justify-between items-center transition-colors"><span className="truncate text-xs text-slate-300">{item.name}</span><span className="text-[#deff9a] text-[10px] font-bold">選取</span></div>))}</div>
+        </div>
+    );
+  };
+
+  const renderMultiImagePicker = () => {
+    const urls = (nodeData.imageUrls && nodeData.imageUrls.length > 0) ? nodeData.imageUrls : (nodeData.imageUrl ? [nodeData.imageUrl] : ['']);
+    return (
+        <div className="space-y-3 bg-slate-800/30 p-4 rounded-xl border border-white/5 animate-in fade-in">
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400"><span>多圖連發 (上限 5 張) ({urls.length}/5)</span>{!isReadOnly && <button onClick={() => { if(urls.length < 5) setNodeData({...nodeData, imageUrls: [...urls, '']}) }} className="text-[#deff9a] hover:bg-slate-700 p-1 rounded transition-colors"><Plus size={14}/></button>}</div>
+            {urls.map((url: string, idx: number) => (
+                <div key={idx} className="space-y-2 border-b border-white/5 pb-3 last:border-0">
+                    <div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">第 {idx + 1} 張圖</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib === `image-${idx}` ? null : `image-${idx}`)} className="text-[#deff9a] text-[10px] flex items-center gap-1 hover:underline"><Library size={12}/> 資源庫</button>}</div>
+                    <div className="flex gap-2"><input value={url} disabled={isReadOnly} onChange={e => { const newUrls = [...urls]; newUrls[idx] = e.target.value; setNodeData({...nodeData, imageUrls: newUrls, imageUrl: newUrls[0]}); }} className="w-full bg-slate-900 border-none rounded-xl px-4 py-2 text-xs outline-none placeholder:text-slate-600" placeholder="圖片網址" />{!isReadOnly && urls.length > 1 && <button onClick={() => { const newUrls = [...urls]; newUrls.splice(idx, 1); setNodeData({...nodeData, imageUrls: newUrls, imageUrl: newUrls[0]}); }} className="text-red-500 p-2 hover:bg-red-500/20 rounded-xl transition-colors"><Trash2 size={14}/></button>}</div>
+                    {activeLib === `image-${idx}` && renderLibraryDropdown((selectedUrl) => { const newUrls = [...urls]; newUrls[idx] = selectedUrl; setNodeData({...nodeData, imageUrls: newUrls, imageUrl: newUrls[0]}); })}
+                </div>
+            ))}
+        </div>
+    );
+  };
+
+  if (!nodeData) return null;
   const isGroup = nodeData.messageType === 'group_box';
   const isTimeRouter = nodeData.messageType === 'time_router';
 
   return (
     <div className={`w-full h-full bg-[#1e293b] flex flex-col shadow-2xl text-white font-sans ${isReadOnly ? 'border-l-4 border-rose-500' : ''}`}>
       <div className="p-5 border-b border-white/10 flex justify-between items-center bg-slate-900/80">
-        <div className="flex flex-col">
-            <h3 className="font-black text-sm tracking-tighter italic text-[#deff9a] uppercase">{isReadOnly ? 'READ-ONLY MONITOR' : 'COMMAND CENTER'}</h3>
-            {isReadOnly && <span className="text-[9px] text-rose-400 font-bold">這是目前線上的真實邏輯，禁止修改</span>}
-        </div>
+        <div className="flex flex-col"><h3 className="font-black text-sm tracking-tighter italic text-[#deff9a] uppercase">{isReadOnly ? 'READ-ONLY MONITOR' : 'COMMAND CENTER'}</h3>{isReadOnly && <span className="text-[9px] text-rose-400 font-bold">這是目前線上的真實邏輯，禁止修改</span>}</div>
         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors"><X size={20}/></button>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col p-6 space-y-6">
-          {/* 基礎設定區 - 加上 disabled 邏輯 */}
-          <fieldset disabled={isReadOnly} className="space-y-6">
+          <div className="space-y-6">
               {!isGroup && (
                   <div className="flex gap-4">
-                    <div className="flex-[2] space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">啟動關鍵字</label>
-                        <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" />
-                    </div>
-                    {nodeData.messageType !== 'time_router' && (
-                        <div className="flex-1 space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">自定義標籤</label>
-                            <input value={nodeData.customLabel || ""} onChange={e => setNodeData({...nodeData, customLabel: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-400" />
-                        </div>
-                    )}
+                    <div className="flex-[2] space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">啟動關鍵字</label><input value={nodeData.nodeName || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" /></div>
+                    <div className="flex-1 space-y-1.5"><label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Tag size={10}/> 自定義標籤</label><input value={nodeData.customLabel || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, customLabel: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-blue-400" /></div>
                   </div>
               )}
-
-              {isTimeRouter && (
-                  <div className="space-y-5 bg-indigo-950/20 p-5 rounded-2xl border border-indigo-500/20">
-                      <div className="flex items-center gap-3">
-                        <input type="time" value={nodeData.config?.startTime || "09:00"} disabled={isReadOnly} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 text-sm [color-scheme:dark]" />
-                        <span className="text-slate-500 font-black">至</span>
-                        <input type="time" value={nodeData.config?.endTime || "18:00"} disabled={isReadOnly} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 text-sm [color-scheme:dark]" />
-                      </div>
-                  </div>
-              )}
-
-              {/* 內容編輯區 */}
-              {!isGroup && !isTimeRouter && (
-                <div className="space-y-4">
-                    <textarea value={nodeData.textContent || ""} disabled={isReadOnly} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[100px]" />
-                    <div className="space-y-2">
-                        {(nodeData.buttons || []).map((btn: any, i: number) => (
-                            <div key={i} className="flex gap-2">
-                                <input value={btn.label} disabled={isReadOnly} className="flex-1 bg-slate-900 rounded-lg p-2 text-xs" />
-                                <input value={btn.target} disabled={isReadOnly} className="flex-[1.5] bg-slate-900 rounded-lg p-2 text-xs" />
-                            </div>
-                        ))}
-                    </div>
+              {!isGroup && (
+                <div className="flex items-center justify-between bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/30">
+                  <div className="flex items-center gap-3"><Globe size={18} className={nodeData.isGlobal ? "text-indigo-400" : "text-slate-600"} /><div><label className={`text-[11px] font-black uppercase tracking-widest ${nodeData.isGlobal ? 'text-indigo-300' : 'text-slate-500'}`}>全域觸發 (任意門)</label></div></div>
+                  <button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, isGlobal: !nodeData.isGlobal})} className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-1 flex-shrink-0 ${nodeData.isGlobal ? 'bg-indigo-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white transition-transform ${nodeData.isGlobal ? 'translate-x-6' : 'translate-x-0'}`} /></button>
                 </div>
               )}
-          </fieldset>
-
-          {/* 預覽區不受影響 */}
-          <div className="space-y-4 border-t border-white/5 pt-6">
-              <button onClick={() => setShowPreview(!showPreview)} className="w-full flex justify-between items-center bg-slate-800/50 p-3 rounded-xl">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">實機預覽</span>
-                  {showPreview ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-              </button>
-              {showPreview && <LineSimulator data={nodeData} />}
+              {isTimeRouter && (
+                <div className="space-y-5 bg-indigo-950/20 p-5 rounded-2xl border border-indigo-500/20">
+                    <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1"><Clock size={14}/> 營業時段</label>
+                    <div className="flex items-center gap-3"><input type="time" value={nodeData.config?.startTime || "09:00"} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, config: {...nodeData.config, startTime: e.target.value}})} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 text-sm [color-scheme:dark]" /><span className="text-slate-500 font-black">至</span><input type="time" value={nodeData.config?.endTime || "18:00"} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, config: {...nodeData.config, endTime: e.target.value}})} className="flex-1 bg-slate-900 text-white rounded-xl px-4 py-3 text-sm [color-scheme:dark]" /></div>
+                    <div className="space-y-3 pt-3 border-t border-indigo-500/20"><label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1"><CalendarDays size={14}/> 營業日設定</label><div className="flex justify-between gap-1">{WEEKDAYS.map(day => (<button key={day.id} disabled={isReadOnly} onClick={() => { const currentDays = nodeData.config?.workDays || []; const newDays = currentDays.includes(day.id) ? currentDays.filter((d: number) => d !== day.id) : [...currentDays, day.id]; setNodeData({...nodeData, config: {...nodeData.config, workDays: newDays}}); }} className={`w-10 h-10 rounded-full text-xs font-black transition-all ${nodeData.config?.workDays?.includes(day.id) ? 'bg-indigo-500 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>{day.label}</button>))}</div></div>
+                    <button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, config: {...nodeData.config, forceOffHours: !nodeData.config?.forceOffHours}})} className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-sm transition-all border-2 ${nodeData.config?.forceOffHours ? 'bg-rose-600 border-rose-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-500'}`}><AlertTriangle size={18} />{nodeData.config?.forceOffHours ? "🚨 強制下班模式" : "緊急下班模式"}</button>
+                </div>
+              )}
+              {!isGroup && !isTimeRouter && (
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                    {nodeData.messageType === 'text' && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">回覆文字</label>{!isReadOnly && <button onClick={() => setShowEmoji(!showEmoji)} className={`text-[10px] px-2 py-1 rounded ${showEmoji ? 'bg-[#deff9a] text-black font-bold' : 'text-[#deff9a] bg-slate-800'}`}><Smile size={12}/> 符號</button>}</div>
+                            {showEmoji && (<div className="grid grid-cols-8 gap-1 bg-slate-900 p-2 rounded-xl max-h-32 overflow-y-auto">{EMOJI_LIST.map(e => <button key={e} onClick={() => setNodeData({...nodeData, textContent: (nodeData.textContent||"") + e})} className="hover:bg-white/10 p-1 rounded text-lg">{e}</button>)}</div>)}
+                            <textarea value={nodeData.textContent || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[120px] outline-none" />
+                        </div>
+                    )}
+                    {nodeData.messageType === 'image' && renderMultiImagePicker()}
+                    {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
+                        <div className="space-y-4">
+                            <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型</button></div>
+                            <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib==='fImg'?'null':'fImg')} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div><input value={nodeData.imageUrl || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" />{activeLib==='fImg' && renderLibraryDropdown((url)=>setNodeData({...nodeData, imageUrl:url}))}</div>
+                            <textarea value={nodeData.textContent || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px]" />
+                        </div>
+                    )}
+                </div>
+              )}
+              <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-[#deff9a]/20">
+                    <div className="flex justify-between items-center text-[10px] font-black text-[#deff9a] uppercase tracking-widest"><div className="flex items-center gap-1"><span>分支按鈕 ({nodeData.buttons?.length || 0}/6)</span><Info size={10} className="text-slate-400 cursor-help"/></div>{!isReadOnly && <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] bg-slate-900/50 p-1.5 rounded"><Plus size={14}/></button>}</div>
+                    {nodeData.buttons?.map((btn: any, i: number) => (
+                        <div key={i} className="flex gap-2 items-center">
+                            <input value={btn.label} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-1 bg-slate-900 rounded-lg p-2 text-xs" placeholder="按鈕文字" />
+                            <input value={btn.target} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-[1.5] bg-slate-900 rounded-lg p-2 text-xs" placeholder="跳轉關鍵字" />
+                            {!isReadOnly && <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-full"><Trash2 size={12}/></button>}
+                        </div>
+                    ))}
+              </div>
           </div>
+          <div className="space-y-4 border-t border-white/5 pt-6 mt-4">
+              <button onClick={() => setShowPreview(!showPreview)} className="w-full flex justify-between items-center bg-slate-800/50 hover:bg-slate-700 p-3 rounded-xl transition-colors border border-white/5"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">實機預覽</span>{showPreview ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</button>
+              {showPreview && <div className="animate-in fade-in slide-in-from-top-2"><LineSimulator data={nodeData} /></div>}
+          </div>
+          {!isReadOnly && <button onClick={() => { if(window.confirm(`確定刪除？`)) deleteDoc(doc(db, "flowRules", nodeId!)); onClose(); }} className="w-full text-red-500/50 hover:text-red-500 text-[10px] py-4 uppercase font-bold tracking-widest flex items-center justify-center gap-1 mt-4 transition-colors border-t border-white/5 pt-8"><Trash2 size={12}/> Delete {nodeData.messageType}</button>}
       </div>
-
       {!isReadOnly && (
-          <div className="p-6 border-t border-white/10 bg-slate-900 flex gap-3">
-            <button onClick={handleSave} disabled={isSaving} className="w-full bg-[#deff9a] text-black font-black py-4 rounded-2xl shadow-lg hover:brightness-110">
-                {isSaving ? "處理中..." : "儲存配置"}
-            </button>
+          <div className="p-6 border-t border-white/10 bg-slate-900 flex gap-3 z-50">
+            <button onClick={handleDuplicate} disabled={isSaving} className="flex-1 bg-slate-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-slate-600"><Copy size={18}/> 複製</button>
+            <button onClick={handleSave} disabled={isSaving} className="flex-[2] bg-[#deff9a] text-black font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all hover:brightness-110">{isSaving ? "處理中..." : "儲存配置"}</button>
           </div>
       )}
     </div>
