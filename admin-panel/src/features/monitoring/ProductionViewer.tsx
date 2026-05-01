@@ -21,48 +21,48 @@ const CustomStyles = () => (
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
-  const options = data.options || data.buttons || [];
-  const isStart = data.nodeName === '預設回覆';
+  const options = data?.options || data?.buttons || [];
+  const isStart = data?.nodeName === '預設回覆';
   return (
-    <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
+    <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data?.messageType, isStart)}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
-        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
+        {data?.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
-          {data.label || data.nodeName}
+          {data?.nodeName || 'Node'}
         </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data?.messageType || 'TEXT'}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 !right-[-10px]" />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />}
     </div>
   );
 };
 
 const GroupNodeProd = ({ data }: any) => {
-  const isDone = data.customLabel === '已完成';
-  const isTodo = data.customLabel === '待處理';
+  const isDone = data?.customLabel === '已完成';
+  const isTodo = data?.customLabel === '待處理';
   const bgColor = isDone ? 'bg-emerald-500/5 border-emerald-500/50' : isTodo ? 'bg-amber-500/5 border-amber-500/50' : 'bg-blue-500/5 border-blue-500/30';
   const labelColor = isDone ? 'bg-emerald-600 text-white border-emerald-400' : isTodo ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400';
   return (
     <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${bgColor}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data.title || '區塊'}</div>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data?.title || '區塊'}</div>
     </div>
   );
 };
@@ -70,8 +70,8 @@ const GroupNodeProd = ({ data }: any) => {
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
     <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
-    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
-    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
+    <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data?.nodeName || 'TimeRouter'}</span></div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data?.config?.startTime || '09:00'} - {data?.config?.endTime || '18:00'}</div>
     <Handle type="source" position={Position.Right} id="business" isConnectable={false} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
     <Handle type="source" position={Position.Right} id="off-hours" isConnectable={false} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
   </div>
@@ -91,18 +91,27 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
-        const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => ({
-            id: n.id, 
-            position: n.position, 
-            type: n.type, 
-            data: n.data || {}, 
-            style: n.style,
-            width: n.width,
-            height: n.height
-        }));
+        const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => {
+          const base: any = {
+            id: n.id,
+            position: n.position,
+            type: n.type,
+            data: n.data || {},
+            style: n.style || {} // 保證 style 是一個物件
+          };
+          
+          // 🚀 核心修復：手動把資料庫存的 width / height 轉回 CSS style
+          if (n.type === 'group') {
+            base.style.width = Number(n.width) || Number(base.style.width) || 400;
+            base.style.height = Number(n.height) || Number(base.style.height) || 300;
+          }
+          
+          return base;
+        });
         
         setNodes(safeNodes);
         
+        // 過濾毒瘤 null
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
             const cleanEdge = { ...e };
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
@@ -139,7 +148,7 @@ function ProductionCanvas() {
             edges={edges} 
             nodeTypes={nodeTypes} 
             nodesDraggable={false} 
-            nodesConnectable={false} 
+            nodesConnectable={false}
             elementsSelectable={true} 
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
