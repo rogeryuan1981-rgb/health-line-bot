@@ -18,7 +18,7 @@ const WEEKDAYS = [
 
 export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | null, onClose: () => void }) {
   const [nodeData, setNodeData] = useState<any>({
-    nodeName: "", globalKeyword: "", customLabel: "", messageType: 'text', cardSize: 'md', 
+    nodeName: "", isGlobal: false, customLabel: "", messageType: 'text', cardSize: 'md', 
     btnStyle: 'primary', textContent: "", imageUrl: "", imageUrls: [], videoUrl: "", fileUrl: "", 
     buttons: [], cards: [], config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }
   });
@@ -38,10 +38,11 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
       const snap = await getDoc(doc(db, "flowRules", nodeId));
       if (snap.exists()) {
           const data = snap.data();
-          // 若是時間節點但缺乏設定，給予預設值防呆
           if (data.messageType === 'time_router' && !data.config) {
               data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
           }
+          // 確保 isGlobal 預設值為 boolean
+          data.isGlobal = data.isGlobal || false;
           setNodeData(data);
       }
       const libSnap = await getDocs(collection(db, "resources"));
@@ -74,7 +75,8 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
           const matchedNodes = allNodes.filter(n => {
             if (n.id === nodeId) return false;
             const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
-            return keywords.includes(targetKeyword) || (n.globalKeyword && n.globalKeyword === targetKeyword);
+            // 🚀 尋找連線目標時，也同步支援判斷目標是否為全域節點
+            return keywords.includes(targetKeyword) || (n.isGlobal && n.nodeName === targetKeyword);
           });
 
           if (matchedNodes.length > 0) {
@@ -89,7 +91,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
             if (!edgeExists) {
               await addDoc(collection(db, "flowEdges"), {
-                source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', // 配合左進右出
+                source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', 
                 color: '#60a5fa', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp()
               });
             }
@@ -195,7 +197,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col p-6 space-y-6">
-          {/* 群組區塊設定 */}
           {isGroup && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                 <div className="space-y-1.5">
@@ -205,11 +206,7 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                 <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">區塊狀態 (Status)</label>
                     <div className="grid grid-cols-3 gap-2">
-                        {[
-                            { id: '規劃中', color: 'bg-blue-600' },
-                            { id: '待處理', color: 'bg-amber-600' },
-                            { id: '已完成', color: 'bg-emerald-600' }
-                        ].map(status => (
+                        {[{ id: '規劃中', color: 'bg-blue-600' }, { id: '待處理', color: 'bg-amber-600' }, { id: '已完成', color: 'bg-emerald-600' }].map(status => (
                             <button 
                                 key={status.id} onClick={() => setNodeData({...nodeData, customLabel: status.id})}
                                 className={`py-3 rounded-xl text-[10px] font-black border transition-all ${nodeData.customLabel === status.id ? 'border-white bg-slate-700 shadow-lg' : 'border-transparent bg-slate-900 text-slate-500'}`}
@@ -222,7 +219,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             </div>
           )}
 
-          {/* 時間分流節點專屬設定 */}
           {isTimeRouter && (
             <div className="space-y-6 animate-in fade-in">
                 <div className="space-y-1.5">
@@ -275,7 +271,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
             </div>
           )}
 
-          {/* 一般訊息節點設定 */}
           {!isGroup && !isTimeRouter && (
             <div className="space-y-6 animate-in fade-in">
                 <div className="flex gap-4">
@@ -289,9 +284,21 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                   </div>
                 </div>
 
-                <div className="space-y-1.5 bg-indigo-950/30 p-3 rounded-xl border border-indigo-500/30">
-                  <label className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-1"><Globe size={12}/> 全域關鍵字 (任意門)</label>
-                  <input value={nodeData.globalKeyword || ""} onChange={e => setNodeData({...nodeData, globalKeyword: e.target.value})} className="w-full bg-slate-900/50 text-indigo-100 border-none rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 ring-indigo-400" placeholder="輸入此字將無視流程，直接空降跳轉於此 (選填)" />
+                {/* 🚀 升級：全域任意門改為 Toggle 開關 */}
+                <div className="flex items-center justify-between bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/30">
+                  <div className="flex items-center gap-3">
+                    <Globe size={18} className={nodeData.isGlobal ? "text-indigo-400" : "text-slate-600"} />
+                    <div>
+                      <label className={`text-[11px] font-black uppercase tracking-widest ${nodeData.isGlobal ? 'text-indigo-300' : 'text-slate-500'}`}>全域觸發 (任意門)</label>
+                      <p className="text-[9px] text-slate-400 mt-0.5 leading-relaxed">開啟後，對話中只要輸入「啟動關鍵字」即可無條件跳轉至此節點。</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setNodeData({...nodeData, isGlobal: !nodeData.isGlobal})}
+                    className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-1 flex-shrink-0 ${nodeData.isGlobal ? 'bg-indigo-500' : 'bg-slate-700'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${nodeData.isGlobal ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-6 gap-1 p-1 bg-slate-900 rounded-lg">
