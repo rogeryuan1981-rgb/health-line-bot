@@ -41,7 +41,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
           if (data.messageType === 'time_router' && !data.config) {
               data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
           }
-          // 確保 isGlobal 預設值為 boolean
           data.isGlobal = data.isGlobal || false;
           setNodeData(data);
       }
@@ -69,24 +68,17 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
 
         for (const [index, btn] of nodeData.buttons.entries()) {
           const targetKeyword = btn.target?.trim();
-          
           if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
 
           const matchedNodes = allNodes.filter(n => {
             if (n.id === nodeId) return false;
             const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
-            // 🚀 尋找連線目標時，也同步支援判斷目標是否為全域節點
             return keywords.includes(targetKeyword) || (n.isGlobal && n.nodeName === targetKeyword);
           });
 
           if (matchedNodes.length > 0) {
-            if (matchedNodes.length > 1) {
-              alert(`⚠️ 警告：畫布上有 ${matchedNodes.length} 個節點符合「${targetKeyword}」！\n已連線至第一個找到的節點。`);
-            }
-
             const targetNodeId = matchedNodes[0].id;
             const dynamicSourceHandle = `opt_${index}`;
-
             const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId && e.sourceHandle === dynamicSourceHandle);
 
             if (!edgeExists) {
@@ -101,7 +93,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
         console.error("自動連線處理失敗", error);
       }
     }
-
     setIsSaving(false);
     alert("✅ 配置已儲存！");
   };
@@ -222,8 +213,25 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
           {isTimeRouter && (
             <div className="space-y-6 animate-in fade-in">
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">分流節點名稱</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">分流節點名稱 / 啟動關鍵字</label>
                     <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 上下班時間判定" />
+                </div>
+
+                {/* 🚀 關鍵解封：讓時間節點也擁有全域觸發開關！ */}
+                <div className="flex items-center justify-between bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/30">
+                  <div className="flex items-center gap-3">
+                    <Globe size={18} className={nodeData.isGlobal ? "text-indigo-400" : "text-slate-600"} />
+                    <div>
+                      <label className={`text-[11px] font-black uppercase tracking-widest ${nodeData.isGlobal ? 'text-indigo-300' : 'text-slate-500'}`}>全域觸發 (任意門)</label>
+                      <p className="text-[9px] text-slate-400 mt-0.5 leading-relaxed">開啟後，輸入「節點名稱」會先進行時間判定再分流。</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setNodeData({...nodeData, isGlobal: !nodeData.isGlobal})}
+                    className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-1 flex-shrink-0 ${nodeData.isGlobal ? 'bg-indigo-500' : 'bg-slate-700'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${nodeData.isGlobal ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
                 </div>
 
                 <div className="space-y-5 bg-indigo-950/20 p-5 rounded-2xl border border-indigo-500/20">
@@ -284,7 +292,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                   </div>
                 </div>
 
-                {/* 🚀 升級：全域任意門改為 Toggle 開關 */}
                 <div className="flex items-center justify-between bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/30">
                   <div className="flex items-center gap-3">
                     <Globe size={18} className={nodeData.isGlobal ? "text-indigo-400" : "text-slate-600"} />
