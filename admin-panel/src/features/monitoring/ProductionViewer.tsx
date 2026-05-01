@@ -1,128 +1,141 @@
 import { useState, useEffect } from 'react';
+import ReactFlow, { 
+  Controls, Background, BackgroundVariant, Node, Edge, 
+  MarkerType, ReactFlowProvider 
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { ShieldCheck, Clock, Globe, Zap, AlertTriangle } from 'lucide-react';
 
-export default function ProductionViewer() {
-  const [prodConfig, setProdConfig] = useState<any>(null);
+// 🚀 正式機專用組件：為了保證純粹唯讀，我們自定義簡單的 Node 呈現
+const ProdNode = ({ data }: any) => {
+  const isStart = data.nodeName === '預設回覆';
+  return (
+    <div className={`px-4 py-3 shadow-2xl rounded-2xl border-2 min-w-[180px] bg-slate-900 ${isStart ? 'border-yellow-400' : 'border-slate-700'}`}>
+      <div className="flex flex-col items-center">
+        {data.isGlobal && <div className="absolute -top-2 -right-2 bg-indigo-500 text-white rounded-full p-1 border border-slate-900"><Globe size={10} /></div>}
+        <div className="text-[10px] font-black text-slate-500 uppercase mb-1">{data.messageType}</div>
+        <div className="text-sm font-bold text-white text-center break-words">{data.label || data.nodeName}</div>
+        {data.messageType === 'time_router' && (
+          <div className="mt-2 px-2 py-0.5 bg-purple-500/20 text-purple-400 text-[9px] font-mono rounded border border-purple-500/30">
+            {data.config?.startTime} - {data.config?.endTime}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const nodeTypes = { custom: ProdNode, timeRouter: ProdNode }; // 正式機畫面統一使用唯讀樣式
+
+function ProductionCanvas() {
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [stats, setStats] = useState({ nodes: 0, edges: 0, globals: 0, lastDate: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
-        setProdConfig(snap.data());
+        const data = snap.data();
+        
+        // 轉換節點
+        const flowNodes = (data.nodes || []).map((n: any) => ({
+          id: n.id,
+          type: 'custom',
+          position: n.position || { x: 0, y: 0 },
+          data: { ...n, label: n.nodeName },
+          draggable: false, // 🚀 禁止拖動
+          selectable: false,
+        }));
+
+        // 轉換連線
+        const flowEdges = (data.edges || []).map((e: any) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          animated: true, // 🚀 正式機連線保持動畫，代表正在運行
+          style: { stroke: '#f43f5e', strokeWidth: 2 }, // 改用紅色代表 Production
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#f43f5e' }
+        }));
+
+        setNodes(flowNodes);
+        setEdges(flowEdges);
+        setStats({
+          nodes: flowNodes.length,
+          edges: flowEdges.length,
+          globals: (data.nodes || []).filter((n:any) => n.isGlobal).length,
+          lastDate: data.publishedAt?.toDate ? data.publishedAt.toDate().toLocaleString() : '未知'
+        });
       }
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
-  if (loading) return (
-    <div className="flex-1 bg-[#0F172A] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-[#22c55e] border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400 font-bold tracking-widest text-xs">正在連線至正式環境數據庫...</p>
-      </div>
-    </div>
-  );
-
-  if (!prodConfig) return (
-    <div className="flex-1 bg-[#0F172A] flex items-center justify-center p-10 text-center">
-        <div className="max-w-md space-y-4">
-            <AlertTriangle className="text-amber-500 mx-auto" size={48} />
-            <h2 className="text-white text-xl font-black">尚未發布正式版本</h2>
-            <p className="text-slate-400 text-sm leading-relaxed">目前線上數據庫中查無正式設定。請先於流程編輯器中完成編輯，並點擊「立即發布正式機」。</p>
-        </div>
-    </div>
-  );
-
-  const publishDate = prodConfig.publishedAt?.toDate ? prodConfig.publishedAt.toDate().toLocaleString() : '未知時間';
+  if (loading) return <div className="h-full w-full flex items-center justify-center text-[#22c55e] animate-pulse font-black">CONNECTING TO PRODUCTION SERVER...</div>;
 
   return (
-    <div className="flex-1 bg-[#020617] overflow-y-auto p-8 space-y-8 animate-in fade-in duration-500 scrollbar-hide">
-      <div className="flex items-end justify-between border-b border-white/5 pb-8">
-        <div className="space-y-2">
-            <div className="flex items-center gap-3">
-                <div className="bg-rose-500 p-2 rounded-lg"><ShieldCheck className="text-white" size={24} /></div>
-                <h1 className="text-3xl font-black text-white tracking-tighter italic">PRODUCTION LIVE MONITOR</h1>
-            </div>
-            <p className="text-slate-400 text-sm font-medium">目前正式機正在運行中的邏輯版本（唯讀模式）</p>
+    <div className="flex flex-col h-full bg-[#020617]">
+      {/* 頂部儀錶板 - 緊湊版 */}
+      <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="bg-rose-500 p-2 rounded-xl"><ShieldCheck className="text-white" size={24} /></div>
+          <div>
+            <h1 className="text-xl font-black text-white italic tracking-tighter">PRODUCTION LIVE VIEW</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">目前線上環境真實狀態 (唯讀)</p>
+          </div>
         </div>
-        <div className="text-right">
-            <div className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em]">最後發布時間</div>
-            <div className="text-xl font-black text-white">{publishDate}</div>
+
+        <div className="flex gap-8">
+          <div className="text-right">
+            <div className="text-[9px] font-black text-slate-500 uppercase">線上節點</div>
+            <div className="text-xl font-black text-white">{stats.nodes}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[9px] font-black text-slate-500 uppercase">全域入口</div>
+            <div className="text-xl font-black text-indigo-400">{stats.globals}</div>
+          </div>
+          <div className="text-right border-l border-white/10 pl-8">
+            <div className="text-[9px] font-black text-rose-500 uppercase">最後發布時間</div>
+            <div className="text-xl font-black text-white">{stats.stats.lastDate}</div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-6">
-        <div className="bg-slate-900/50 border border-white/5 p-6 rounded-3xl">
-            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">節點總數</div>
-            <div className="text-3xl font-black text-white">{prodConfig.nodes?.length || 0} <span className="text-xs text-slate-600 font-normal ml-1">Nodes</span></div>
-        </div>
-        <div className="bg-slate-900/50 border border-white/5 p-6 rounded-3xl">
-            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">連線總數</div>
-            <div className="text-3xl font-black text-white">{prodConfig.edges?.length || 0} <span className="text-xs text-slate-600 font-normal ml-1">Edges</span></div>
-        </div>
-        <div className="bg-slate-900/50 border border-white/5 p-6 rounded-3xl border-l-4 border-l-indigo-500">
-            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">全域觸發</div>
-            <div className="text-3xl font-black text-indigo-400">{prodConfig.nodes?.filter((n:any)=>n.isGlobal).length || 0} <span className="text-xs text-slate-600 font-normal ml-1">Globals</span></div>
-        </div>
-        <div className="bg-slate-900/50 border border-white/5 p-6 rounded-3xl border-l-4 border-l-purple-500">
-            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">時間路由</div>
-            <div className="text-3xl font-black text-purple-400">{prodConfig.nodes?.filter((n:any)=>n.messageType==='time_router').length || 0} <span className="text-xs text-slate-600 font-normal ml-1">Routers</span></div>
+      {/* 畫布區域 */}
+      <div className="flex-1 relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          fitView
+        >
+          {/* 使用暗紅色背景點陣，區別於編輯器 */}
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#451a1a" />
+          <Controls />
+        </ReactFlow>
+
+        {/* 浮動警告標籤 */}
+        <div className="absolute bottom-6 right-6 px-4 py-2 bg-rose-600/20 border border-rose-500/50 rounded-full backdrop-blur-md flex items-center gap-2">
+            <AlertTriangle size={14} className="text-rose-500 animate-pulse" />
+            <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Read-Only Mode</span>
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="space-y-4">
-        <h3 className="text-sm font-black text-[#deff9a] tracking-widest uppercase mb-4 flex items-center gap-2"><Zap size={16}/> 運行邏輯詳情 (Live Logic Details)</h3>
-        
-        <div className="grid grid-cols-1 gap-3">
-            {prodConfig.nodes?.sort((_a: any, b: any) => (b.isGlobal ? 1 : -1)).map((node: any) => (
-                <div key={node.id} className="bg-slate-900/30 border border-white/5 hover:border-white/10 transition-colors p-5 rounded-2xl flex items-center gap-6 group">
-                    <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-slate-700 transition-colors">
-                        {node.messageType === 'time_router' ? <Clock className="text-purple-400" size={20}/> : <Zap className="text-blue-400" size={20}/>}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-sm font-bold text-white truncate">{node.nodeName}</h4>
-                            {node.isGlobal && <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[8px] font-black rounded-full border border-indigo-500/30 flex items-center gap-1"><Globe size={8}/> 全域觸發</span>}
-                        </div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">TYPE: {node.messageType} • ID: {node.id.slice(0,8)}...</p>
-                    </div>
-
-                    <div className="flex-[1.5] flex gap-4">
-                        {node.messageType === 'time_router' ? (
-                            <div className="bg-slate-950/50 px-4 py-2 rounded-xl border border-white/5 flex-1">
-                                <span className="text-[9px] text-slate-500 block mb-1 font-bold uppercase">Time Range</span>
-                                <span className="text-xs text-purple-300 font-mono">{node.config?.startTime || '09:00'} - {node.config?.endTime || '18:00'}</span>
-                                {node.config?.forceOffHours && <span className="ml-2 text-rose-500 text-[9px] font-black animate-pulse">● 預警關閉模式</span>}
-                            </div>
-                        ) : (
-                            <div className="flex-1 min-w-0">
-                                <span className="text-[9px] text-slate-500 block mb-1 font-bold uppercase">Actions / Buttons</span>
-                                <div className="flex flex-wrap gap-1">
-                                    {(node.buttons || node.options || []).map((btn: any, idx: number) => (
-                                        <div key={idx} className="bg-slate-800/50 px-2 py-1 rounded text-[9px] text-slate-300 border border-white/5">
-                                            {btn.label || '無名稱'} → {btn.target || 'N/A'}
-                                        </div>
-                                    ))}
-                                    {(!node.buttons?.length && !node.options?.length) && <span className="text-[9px] text-slate-600 italic">無分支按鈕</span>}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="w-32 text-right">
-                        <div className="text-[9px] text-slate-500 font-bold uppercase mb-1">Outgoing Edges</div>
-                        <div className="text-xs font-black text-white">
-                            {prodConfig.edges?.filter((e:any)=>e.source === node.id).length || 0} <span className="text-slate-600">條連線</span>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-      </div>
+export default function ProductionViewer() {
+  return (
+    <div className="flex-1 h-full overflow-hidden">
+      <ReactFlowProvider>
+        <ProductionCanvas />
+      </ReactFlowProvider>
     </div>
   );
 }
