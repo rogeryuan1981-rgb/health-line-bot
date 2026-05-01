@@ -19,14 +19,14 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 關鍵修正：實心背景色，解決透明度造成的顏色深淺不一
+// 🚀 核心修正 1：還原 /80 透明度，讓節點疊在群組上能透出正確的深淺層次
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
-  const t = type.toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
+  const t = String(type).toLowerCase().trim();
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNode = ({ data, isConnectable }: any) => {
@@ -92,8 +92,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
-  
-  // 🚀 關鍵還原：您的可命名存檔 Modal
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -124,13 +122,24 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
+        // 🚀 核心修正 2：不再寫死，完整套用您 EdgeEditPanel 的資料欄位
         return { 
-            id: d.id, source: data.source, target: data.target, 
-            sourceHandle: data.sourceHandle, targetHandle: data.targetHandle, 
-            type: 'smoothstep', // 🚀 強制還原平滑曲線
-            animated: true, 
-            style: { stroke: data.color || '#deff9a', strokeWidth: 2 }, 
-            markerEnd: { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' } 
+            id: d.id, 
+            source: data.source, 
+            target: data.target, 
+            sourceHandle: data.sourceHandle, 
+            targetHandle: data.targetHandle, 
+            type: data.pathType || 'smoothstep', // 套用科技折線/曲線
+            animated: data.dashed !== false,     // 套用虛線/實線
+            style: { 
+                stroke: data.color || '#deff9a', 
+                strokeWidth: data.strokeWidth ? Number(data.strokeWidth) : 2, 
+                strokeDasharray: data.dashed ? '5 5' : 'none'
+            }, 
+            markerEnd: data.arrowDirection === 'none' ? undefined : { 
+                type: MarkerType.ArrowClosed, 
+                color: data.color || '#deff9a' 
+            } 
         };
       }));
     });
@@ -165,23 +174,26 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           data: cleanData,
           width: n.width || (n.style?.width ? parseInt(n.style.width as string) : 400),
           height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
-          parentNode: null
+          parentNode: null // 打平層級
         };
       });
 
+      // 🚀 核心修正 3：發布時將編輯器上的 style 與 markerEnd 完整帶過去
       const edgesToPublish = flowObject.edges.map(e => ({
         id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
         targetHandle: e.targetHandle ? String(e.targetHandle) : null,
-        type: 'smoothstep', 
-        color: String((e.style?.stroke as string) || '#deff9a')
+        type: String(e.type || 'smoothstep'),
+        animated: Boolean(e.animated),
+        style: e.style || {},
+        markerEnd: e.markerEnd || null
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, edges: edgesToPublish, viewport: flowObject.viewport || { x: 0, y: 0, zoom: 1 }, 
         publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！");
+      alert("🚀 發布成功！正式機會呈現 1:1 畫面。");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -210,7 +222,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   return (
     <>
       <CustomStyles />
-      
       {showSaveModal && (
         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5">
