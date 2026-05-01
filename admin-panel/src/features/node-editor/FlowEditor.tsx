@@ -104,7 +104,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       setNodes(snap.docs.map(d => {
         const data = d.data();
         if (data.messageType === 'group_box') {
-          // 🚀 關鍵修復：完整保留 ...data，不再閹割欄位
           return { id: d.id, type: 'group', position: data.position || { x: 0, y: 0 }, style: { width: data.width || 400, height: data.height || 300 }, data: { ...data, title: data.nodeName, customLabel: data.customLabel }, zIndex: -1 };
         }
         if (data.messageType === 'time_router') {
@@ -133,6 +132,20 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
+
+  // 🚀 關鍵修復：把您原本用來顯示「對話發光軌跡」的邏輯加回來，解決 TS6133 報錯
+  useEffect(() => {
+    if (activePath && activePath.nodes.length > 0) {
+        setNodes(nds => nds.map(n => {
+            const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
+            const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
+            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            return { ...n, className: clean };
+        }));
+    }
+  }, [activePath]);
 
   const executePublish = async () => {
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
