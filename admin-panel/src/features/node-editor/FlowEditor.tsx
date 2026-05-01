@@ -113,7 +113,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const { getViewport } = useReactFlow(); 
+  const { getViewport, getNodes, getEdges } = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -190,45 +190,50 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 關鍵優化區域：修正發布邏輯，確保座標與父子關係完整存入
+  // 🚀 關鍵發布區域修正
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
     setIsPublishing(true); 
     try { 
-      // 🚀 關鍵：使用 positionAbsolute 獲取畫布上的絕對座標
-      const nodesToPublish = nodes.map(n => {
-        return {
-          id: n.id,
-          position: n.positionAbsolute || n.position, 
-          type: n.type,
-          data: n.data,
-          parentNode: n.parentNode || null,
-          width: n.width || n.style?.width || null,
-          height: n.height || n.style?.height || null,
-          messageType: n.data.messageType,
-          nodeName: n.data.nodeName || n.data.label,
-          customLabel: n.data.customLabel || ""
-        };
-      });
-
-      const edgeS = await getDocs(collection(db, "flowEdges")); 
-      const edgesToPublish = edgeS.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      // 🚀 儲存目前的視角 Viewport
+      // 🚀 使用 getNodes() 獲取帶有 positionAbsolute 的最新資料
+      const currentNodes = getNodes();
+      const currentEdges = getEdges();
       const currentViewport = getViewport();
+
+      const nodesToPublish = currentNodes.map(n => ({
+        id: n.id,
+        position: n.positionAbsolute || n.position, // 存入絕對座標解決分家問題
+        type: n.type,
+        data: n.data,
+        parentNode: n.parentNode || null,
+        width: n.width || n.style?.width || null,
+        height: n.height || n.style?.height || null,
+        messageType: n.data.messageType,
+        nodeName: n.data.nodeName || n.data.label,
+        customLabel: n.data.customLabel || ""
+      }));
+
+      const edgesToPublish = currentEdges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        color: e.style?.stroke || '#deff9a'
+      }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
         edges: edgesToPublish, 
-        viewport: currentViewport,
+        viewport: currentViewport, // 同步放大比例
         publishedAt: serverTimestamp(),
         publisher: "Yuan Roger"
       }); 
       alert("🚀 發布成功！正式環境的 LINE 機器人已套用最新邏輯！"); 
     } catch (e) { 
-      console.error(e);
-      alert("發布失敗，請重試"); 
+      console.error("發布出錯：", e);
+      alert("發布失敗，請查看後台錯誤訊息"); 
     } finally { 
       setIsPublishing(false); 
     } 
