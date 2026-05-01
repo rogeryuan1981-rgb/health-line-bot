@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Clock, Globe, Zap, ExternalLink, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Clock, Globe, Zap, AlertTriangle } from 'lucide-react';
 
 export default function ProductionViewer() {
   const [prodConfig, setProdConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 即時監聽正式機文件
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
         setProdConfig(snap.data());
@@ -41,7 +40,6 @@ export default function ProductionViewer() {
 
   return (
     <div className="flex-1 bg-[#020617] overflow-y-auto p-8 space-y-8 animate-in fade-in duration-500 scrollbar-hide">
-      {/* Header */}
       <div className="flex items-end justify-between border-b border-white/5 pb-8">
         <div className="space-y-2">
             <div className="flex items-center gap-3">
@@ -56,7 +54,6 @@ export default function ProductionViewer() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-6">
         <div className="bg-slate-900/50 border border-white/5 p-6 rounded-3xl">
             <div className="text-slate-500 text-[10px] font-black uppercase mb-1">節點總數</div>
@@ -76,19 +73,16 @@ export default function ProductionViewer() {
         </div>
       </div>
 
-      {/* Node Detail List */}
       <div className="space-y-4">
         <h3 className="text-sm font-black text-[#deff9a] tracking-widest uppercase mb-4 flex items-center gap-2"><Zap size={16}/> 運行邏輯詳情 (Live Logic Details)</h3>
         
         <div className="grid grid-cols-1 gap-3">
-            {prodConfig.nodes?.sort((a:any, b:any) => (b.isGlobal ? 1 : -1)).map((node: any) => (
+            {prodConfig.nodes?.sort((_a: any, b: any) => (b.isGlobal ? 1 : -1)).map((node: any) => (
                 <div key={node.id} className="bg-slate-900/30 border border-white/5 hover:border-white/10 transition-colors p-5 rounded-2xl flex items-center gap-6 group">
-                    {/* Status Badge */}
                     <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-slate-700 transition-colors">
                         {node.messageType === 'time_router' ? <Clock className="text-purple-400" size={20}/> : <Zap className="text-blue-400" size={20}/>}
                     </div>
 
-                    {/* Node Info */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                             <h4 className="text-sm font-bold text-white truncate">{node.nodeName}</h4>
@@ -97,7 +91,6 @@ export default function ProductionViewer() {
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">TYPE: {node.messageType} • ID: {node.id.slice(0,8)}...</p>
                     </div>
 
-                    {/* Specific Logic */}
                     <div className="flex-[1.5] flex gap-4">
                         {node.messageType === 'time_router' ? (
                             <div className="bg-slate-950/50 px-4 py-2 rounded-xl border border-white/5 flex-1">
@@ -120,7 +113,6 @@ export default function ProductionViewer() {
                         )}
                     </div>
 
-                    {/* Links Check */}
                     <div className="w-32 text-right">
                         <div className="text-[9px] text-slate-500 font-bold uppercase mb-1">Outgoing Edges</div>
                         <div className="text-xs font-black text-white">
