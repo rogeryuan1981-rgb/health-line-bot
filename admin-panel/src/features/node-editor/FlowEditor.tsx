@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -12,6 +12,7 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
+// 🚀 純粹的光暈特效，保證沒有任何改變大小或佈局的屬性
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -106,11 +107,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const { getViewport, setCenter } = useReactFlow(); 
-
-  // 🚀 關鍵修正 1：用 Ref 儲存最新的 nodes 狀態，讓運鏡 logic 不再依賴於 nodes 本身
-  const nodesRef = useRef<Node[]>([]);
-  const prevPathLengthRef = useRef(0);
+  const { getViewport } = useReactFlow(); 
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -124,7 +121,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
-      const newNodes = snap.docs.map(d => {
+      setNodes(snap.docs.map(d => {
         const data = d.data();
         if (data.messageType === 'group_box') {
           return {
@@ -141,11 +138,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
           className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`
         };
-      });
-      setNodes(newNodes);
-      nodesRef.current = newNodes; // 同步更新 Ref
+      }));
     });
-
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
@@ -163,40 +157,24 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 關鍵修正 2：運鏡邏輯現在「只監聽 activePath」，不再聽 nodes 的臉色
+  // 🚀 關鍵改動：【只有單純的樣式更新，絕對沒有任何攝影機運鏡！】
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
-        const currentPathLength = activePath.nodes.length;
-        
-        // 塗裝邏輯依然需要
         setNodes(nds => nds.map(n => {
             const cleanClass = (n.className || '').replace(/node-current-glow/g, '').replace(/node-visited/g, '').trim();
-            const isCurrent = n.id === activePath.nodes[currentPathLength - 1];
+            const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
             const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
             if (isCurrent) return { ...n, className: `${cleanClass} node-current-glow` };
             if (isVisited) return { ...n, className: `${cleanClass} node-visited` };
             return { ...n, className: cleanClass };
         }));
-        
+
         setEdges(eds => eds.map(e => {
             const isEdgeVisited = activePath.edges.includes(e.id);
             return { ...e, animated: isEdgeVisited ? true : (e.data?.dashed !== false), className: isEdgeVisited ? 'edge-visited' : '', zIndex: isEdgeVisited ? 1000 : 0 };
         }));
-
-        // 🚀 關鍵修正 3：只有路徑真正「變長」且 > 1 步時才運鏡。打字時 activePath.nodes 長度不變，絕對不會觸發。
-        if (currentPathLength > prevPathLengthRef.current && currentPathLength > 1) {
-            const activeNodeId = activePath.nodes[currentPathLength - 1];
-            // 從 Ref 中獲取最新的座標，避免 dependency 回圈
-            const activeNode = nodesRef.current.find(n => n.id === activeNodeId);
-            if (activeNode) {
-                setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.1, duration: 800 });
-            }
-        }
-        prevPathLengthRef.current = currentPathLength;
-    } else {
-        prevPathLengthRef.current = 0;
     }
-  }, [activePath, setCenter]); // 🚀 nodes 被踢出 dependency 了！打字再也不會跳動！
+  }, [activePath]); 
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
   const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
@@ -272,7 +250,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             }
         }} 
         connectionMode={ConnectionMode.Loose} snapToGrid={snapToGrid} snapGrid={[20, 20]}
-        // 🚀 關鍵修正 4：確保絕對沒有 fitView，禁止自動對齊
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
