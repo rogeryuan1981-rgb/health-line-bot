@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
-  Background, BackgroundVariant, Node, Edge, MarkerType,
-  ReactFlowProvider, Handle, Position, useReactFlow, Controls, NodeProps, NodeResizer
+  Background, BackgroundVariant, Node, Edge, 
+  ReactFlowProvider, Handle, Position, useReactFlow, Controls
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
@@ -9,16 +9,15 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 100% 與編輯器相同的動畫 Styles
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } }
     .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
     .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
+    .react-flow__handle { pointer-events: none !important; cursor: default !important; }
   `}} />
 );
 
-// 🚀 100% 與編輯器相同的顏色與透明度邏輯
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -28,13 +27,12 @@ const getNodeStyle = (type: string = '', isStart: boolean) => {
   return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
-// 🚀 100% 與編輯器相同的卡片設計 (保留綠色連結點)
-const CustomNode = ({ data, isConnectable }: any) => {
+const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
   return (
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
-      <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
+      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
@@ -48,43 +46,38 @@ const CustomNode = ({ data, isConnectable }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={isConnectable} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 !right-[-10px]" />}
     </div>
   );
 };
 
-// 🚀 100% 與編輯器相同的 GroupNode
-const GroupNode = ({ data, selected }: NodeProps) => {
+const GroupNodeProd = ({ data }: any) => {
   const isDone = data.customLabel === '已完成';
   const isTodo = data.customLabel === '待處理';
   const bgColor = isDone ? 'bg-emerald-500/5 border-emerald-500/50' : isTodo ? 'bg-amber-500/5 border-amber-500/50' : 'bg-blue-500/5 border-blue-500/30';
   const labelColor = isDone ? 'bg-emerald-600 text-white border-emerald-400' : isTodo ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400';
   return (
-    <>
-      <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} />
-      <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${bgColor}`}>
-        <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data.title || '區塊'}</div>
-      </div>
-    </>
+    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${bgColor}`}>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data.title || '區塊'}</div>
+    </div>
   );
 };
 
-// 🚀 100% 與編輯器相同的 TimeRouterNode
-const TimeRouterNode = ({ data, isConnectable }: any) => (
+const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative transition-all duration-300 text-white text-center">
-    <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
     <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
-    <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
-    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="business" isConnectable={false} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={false} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
   </div>
 );
 
-const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
+const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -110,7 +103,6 @@ function ProductionCanvas() {
         
         setNodes(safeNodes);
         
-        // 🚨 終極防禦：絕對不能讓 null 進入 React Flow，把 null 的 key 直接刪除
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
             const cleanEdge = { ...e };
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
@@ -147,7 +139,7 @@ function ProductionCanvas() {
             edges={edges} 
             nodeTypes={nodeTypes} 
             nodesDraggable={false} 
-            nodesConnectable={false} /* 關閉連線功能 */
+            nodesConnectable={false} 
             elementsSelectable={true} 
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
