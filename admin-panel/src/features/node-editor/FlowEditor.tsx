@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
-  Node, Edge, ReactFlowProvider, NodeProps,
+  Node, Edge, BackgroundVariant, ReactFlowProvider, NodeProps,
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -47,8 +47,8 @@ const CustomNode = ({ data }: any) => {
 const GroupNode = ({ data, selected }: NodeProps) => (
   <>
     <NodeResizer color="#deff9a" isVisible={selected} minWidth={150} minHeight={100} />
-    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative ${data.color || 'border-slate-500/50 bg-slate-500/5'}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase shadow-2xl border-2 z-50 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>{data.title || '區塊'}</div>
+    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative border-slate-500/50 bg-slate-500/5`}>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase shadow-2xl border-2 z-50 bg-slate-800 text-slate-400 border-slate-700`}>{data.title || '區塊'}</div>
     </div>
   </>
 );
@@ -102,6 +102,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       const flowObject = reactFlowInstance.toObject();
       const nodesToPublish = flowObject.nodes.map(n => ({
         id: n.id,
+        // 🚀 關鍵：存入絕對座標，拋棄父子層級，解決位移錯位
         position: n.positionAbsolute || n.position,
         type: n.type,
         data: JSON.parse(JSON.stringify(n.data)),
@@ -109,7 +110,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         height: n.height || (n.style?.height ? parseInt(n.style.height as string) : 300),
         messageType: n.data?.messageType || 'text',
         nodeName: n.data?.nodeName || n.data?.label || 'Node',
-        parentNode: null
+        customLabel: n.data?.customLabel || "",
+        parentNode: null 
       }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
@@ -119,7 +121,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         publishedAt: serverTimestamp(),
         publisher: "Roger"
       });
-      alert("✅ 發布成功");
+      alert("✅ 座標打平發布成功");
     } catch (e: any) { alert(e.message); } finally { setIsPublishing(false); }
   };
 
