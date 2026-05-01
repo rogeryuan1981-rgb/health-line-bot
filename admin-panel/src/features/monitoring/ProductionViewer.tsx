@@ -9,21 +9,21 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
+// 🚀 關鍵修正：不再用 opacity 隱藏 Handle，讓綠色/灰色點點重見天日
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
-    .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
     .node-prod-glow { box-shadow: 0 0 30px rgba(250,204,21,0.4) !important; border-color: #facc15 !important; }
   `}} />
 );
 
-const getNodeStyle = (type: string, isStart: boolean) => {
+// 🚀 與編輯器共用的顏色邏輯
+const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
-  switch(type) {
-    case 'carousel': case 'flex': return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-    case 'image': return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-    case 'video': return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-    default: return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
-  }
+  const t = type.toLowerCase().trim();
+  if (['carousel', 'flex'].includes(t)) return 'bg-amber-950 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (['image', 'photo'].includes(t)) return 'bg-emerald-950 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
+  if (['video'].includes(t)) return 'bg-rose-950 border-rose-500 text-rose-100 shadow-rose-900/50';
+  return 'bg-blue-950 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
@@ -31,12 +31,12 @@ const CustomNodeProd = ({ data }: any) => {
   const isStart = data.nodeName === '預設回覆';
   return (
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
-      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
+      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl border-2 border-black z-50">🚀 START</div>}
-        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
+        {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
-          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
+          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
           {data.nodeName}
         </div>
         <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
@@ -45,11 +45,11 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} style={{ right: -10 }} />
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} style={{ right: -10 }} />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} className="w-3 h-3 bg-slate-400 border-2 border-slate-900 z-50 !right-[-10px]" />}
     </div>
   );
 };
@@ -68,11 +68,11 @@ const GroupNodeProd = ({ data }: any) => {
 
 const TimeRouterNodeProd = ({ data }: any) => (
   <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white text-center">
-    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-indigo-400 border-2 border-slate-900 z-50 !left-[-10px]" />
     <div className="font-black text-sm flex items-center justify-center gap-1.5 mb-1 w-full"><Clock size={16} className="text-indigo-400" /><span>{data.nodeName}</span></div>
     <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 border-indigo-500/30">{data.config?.startTime || '09:00'} - {data.config?.endTime || '18:00'}</div>
-    <Handle type="source" position={Position.Right} id="business" isConnectable={false} style={{ top: '30%' }} />
-    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={false} style={{ top: '70%' }} />
+    <Handle type="source" position={Position.Right} id="business" isConnectable={false} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+    <Handle type="source" position={Position.Right} id="off-hours" isConnectable={false} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 !right-[-10px]" />
   </div>
 );
 
@@ -105,7 +105,7 @@ function ProductionCanvas() {
 
         setNodes(processedNodes);
         
-        // 🚀 關鍵：確保線條套用 smoothstep，這正是您說被改掉的地方
+        // 🚀 強制套用 smoothstep，讓直角折線消失
         setEdges((raw.edges || []).map((e: any) => ({ 
             ...e, 
             type: 'smoothstep', 
