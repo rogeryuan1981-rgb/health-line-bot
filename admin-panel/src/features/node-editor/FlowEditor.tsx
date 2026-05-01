@@ -48,10 +48,10 @@ const CustomNode = ({ data, isConnectable }: any) => {
   return (
     <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
-      <div className="flex flex-col items-center mb-3 mt-1">
+      <div className="flex flex-col items-center mb-3 mt-1 text-white">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900"><Globe size={12} /></div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight text-white">
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
@@ -164,7 +164,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 恢復路徑高亮邏輯
   useEffect(() => {
     if (activePath && activePath.nodes.length > 0) {
         setNodes(nds => nds.map(n => {
@@ -192,19 +191,20 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 終極修復：發布邏輯
+  // 🚀 修正發布逻辑：確保所有座標與屬性在 Firestore 端完整「絕對化」
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
     setIsPublishing(true); 
     try { 
-      // 🚀 直接抓取最新狀態資料，修復分家與比例問題
-      const currentNodes = getNodes();
-      const currentEdges = getEdges();
-      const currentViewport = getViewport();
+      // 🚀 從 React Flow 實體獲取最新的絕對座標數據
+      const latestNodes = getNodes();
+      const latestEdges = getEdges();
+      const latestViewport = getViewport();
 
-      const nodesToPublish = currentNodes.map(n => ({
+      const nodesToPublish = latestNodes.map(n => ({
         id: n.id,
+        // 🚀 關鍵修正：將相對座標轉換為絕對座標，解決監控畫面節點分飛的問題
         position: n.positionAbsolute || n.position, 
         type: n.type,
         data: n.data,
@@ -216,7 +216,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         customLabel: n.data.customLabel || ""
       }));
 
-      const edgesToPublish = currentEdges.map(e => ({
+      const edgesToPublish = latestEdges.map(e => ({
         id: e.id,
         source: e.source,
         target: e.target,
@@ -228,11 +228,11 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
         edges: edgesToPublish, 
-        viewport: currentViewport, 
+        viewport: latestViewport, // 🚀 儲存縮放比例
         publishedAt: serverTimestamp(),
         publisher: "Roger"
       }); 
-      alert("🚀 發布成功！正式環境已套用 1:1 完整配置！"); 
+      alert("🚀 發布成功！正式環境配置已 1:1 同步完成！"); 
     } catch (e) { 
       console.error("發布出錯：", e);
       alert("發布失敗，請重試"); 
