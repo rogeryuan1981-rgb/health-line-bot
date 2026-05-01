@@ -9,7 +9,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Globe, Clock, AlertTriangle, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 強制注入全域樣式：解決連線吸附、發光特效與隱形 Handle 定位
+// 🚀 注入全局 CSS：確保群組背景透明度、節點發光與 Handle 完全消失
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -18,27 +18,26 @@ const GlobalProdStyles = () => (
       100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
     .node-prod-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; }
+    /* 🚀 徹底消除任何 Handle 的視覺殘留 */
     .react-flow__handle { 
         opacity: 0 !important; 
-        width: 8px !important; 
-        height: 8px !important; 
-        right: -4px !important; 
+        background: transparent !important; 
+        border: none !important;
         pointer-events: none !important;
     }
-    .react-flow__edge-path { stroke-width: 2.5px !important; }
+    .react-flow__edge-path { stroke-width: 2px !important; stroke-dasharray: 6 4 !important; }
   `}} />
 );
 
-// --- 🚀 核心渲染組件 (1:1 復刻編輯器邏輯，確保圖示正確使用) ---
+// --- 🚀 核心渲染組件 (1:1 復刻編輯器視覺) ---
 
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆' || data.label === '預設回覆';
   
   return (
-    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl bg-slate-900 flex flex-col p-3 transition-all ${isStart ? 'border-yellow-400 node-prod-glow' : 'border-slate-700'}`}>
+    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl bg-slate-900/95 flex flex-col p-3 transition-all ${isStart ? 'border-yellow-400 node-prod-glow' : 'border-slate-700'}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
-      
       <div className="flex flex-col items-center mb-4 relative">
         {isStart && (
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1 shadow-lg">
@@ -51,11 +50,10 @@ const CustomNodeProd = ({ data }: any) => {
             </div>
         )}
         <div className="font-black text-sm text-white text-center break-words w-full px-1">{data.label || data.nodeName}</div>
-        <div className="mt-1 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+        <div className="mt-1 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase">
             {data.messageType || 'MESSAGE'}
         </div>
       </div>
-
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-800/80 border border-white/5 rounded-lg py-1.5 text-[11px] font-bold text-center text-slate-300">
@@ -70,9 +68,9 @@ const CustomNodeProd = ({ data }: any) => {
 };
 
 const GroupNodeProd = ({ data }: any) => (
-  <div className={`w-full h-full border-2 border-dashed rounded-3xl relative ${data.color || 'border-slate-500/30 bg-slate-500/5'}`}>
-    <div className={`absolute -top-4 left-6 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border-2 ${data.labelColor || 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-      {data.title || 'GROUP'}
+  <div className="w-full h-full relative">
+    <div className={`absolute -top-4 left-6 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest border-2 z-10 ${data.labelColor}`}>
+      {data.title}
     </div>
   </div>
 );
@@ -109,36 +107,41 @@ function ProductionCanvas() {
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
         const raw = snap.data();
-        
         const flowNodes = (raw.nodes || []).map((n: any) => {
           const base = { id: n.id, position: n.position, draggable: false, selectable: true };
           if (n.messageType === 'group_box' || (n.width && n.height && !n.options)) {
             const isDone = n.customLabel === '已完成';
             const isTodo = n.customLabel === '待處理';
+            
+            // 🚀 關鍵修復：手動指定背景顏色，確保 1:1 還原編輯器視覺，解決「死灰框」問題
+            const bgColor = isDone ? 'rgba(16, 185, 129, 0.08)' : isTodo ? 'rgba(245, 158, 11, 0.08)' : 'rgba(59, 130, 246, 0.05)';
+            const borderColor = isDone ? 'rgba(16, 185, 129, 0.5)' : isTodo ? 'rgba(245, 158, 11, 0.5)' : 'rgba(59, 130, 246, 0.3)';
+
             return {
               ...base,
               type: 'group',
-              style: { width: n.width, height: n.height },
+              style: { 
+                width: n.width, 
+                height: n.height, 
+                backgroundColor: bgColor, 
+                border: `2px dashed ${borderColor}`,
+                borderRadius: '24px'
+              },
               data: {
                 title: n.nodeName,
-                color: isDone ? 'border-emerald-500/50 bg-emerald-500/10' : isTodo ? 'border-amber-500/50 bg-amber-500/10' : 'border-blue-500/30 bg-blue-500/5',
                 labelColor: isDone ? 'bg-emerald-600 text-white border-emerald-400' : isTodo ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400'
               },
               zIndex: -1
             };
           }
           if (n.messageType === 'time_router') return { ...base, type: 'timeRouter', data: { ...n } };
-          return {
-            ...base,
-            type: 'custom',
-            data: { ...n, label: n.nodeName }
-          };
+          return { ...base, type: 'custom', data: { ...n, label: n.nodeName } };
         });
 
         const flowEdges = (raw.edges || []).map((e: any) => ({
           ...e,
           animated: true,
-          style: { stroke: e.color || '#60a5fa', strokeWidth: 2.5, strokeDasharray: '5 5' },
+          style: { stroke: e.color || '#60a5fa', strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa' }
         }));
 
@@ -163,7 +166,7 @@ function ProductionCanvas() {
     <div className="flex flex-col h-full bg-[#020617] overflow-hidden relative">
       <GlobalProdStyles />
       
-      {/* 🚀 懸浮監測卡片 (絕對不遮擋 Roger 帳號資訊) */}
+      {/* 🚀 懸浮卡片 (淨空右上角) */}
       <div className="absolute top-6 left-6 z-50 pointer-events-none">
         <div className="bg-slate-900/90 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 pointer-events-auto">
           <div className="bg-rose-600 p-2 rounded-lg shadow-lg shadow-rose-600/20"><ShieldCheck className="text-white" size={20} /></div>
