@@ -12,12 +12,13 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
+// 🚀 修正點：移除了 @keyframes 裡的 transform: scale()，避免覆蓋 React Flow 的座標系統
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
-      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); transform: scale(1); }
-      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); transform: scale(1.02); }
-      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); transform: scale(1); }
+      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
+      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
+      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
     .node-current-glow {
       animation: smoothGlow 2.5s ease-in-out infinite !important;
@@ -191,7 +192,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             };
         }));
 
-        // 🚀 關鍵修改：只有當路徑大於 1 步時（代表使用者真正開始對話推進），才執行運鏡！初次開啟或重置時不干擾畫布。
         if (activePath.nodes.length > 1) {
             const activeNodeId = activePath.nodes[activePath.nodes.length - 1];
             const activeNode = nodes.find(n => n.id === activeNodeId);
