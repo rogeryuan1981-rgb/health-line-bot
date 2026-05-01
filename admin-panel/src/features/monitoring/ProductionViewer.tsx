@@ -6,9 +6,9 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Clock, Globe, Zap, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Globe, AlertTriangle } from 'lucide-react';
 
-// 🚀 正式機專用組件：為了保證純粹唯讀，我們自定義簡單的 Node 呈現
+// 🚀 正式機專用唯讀節點
 const ProdNode = ({ data }: any) => {
   const isStart = data.nodeName === '預設回覆';
   return (
@@ -27,7 +27,7 @@ const ProdNode = ({ data }: any) => {
   );
 };
 
-const nodeTypes = { custom: ProdNode, timeRouter: ProdNode }; // 正式機畫面統一使用唯讀樣式
+const nodeTypes = { custom: ProdNode, timeRouter: ProdNode };
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -40,23 +40,21 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const data = snap.data();
         
-        // 轉換節點
         const flowNodes = (data.nodes || []).map((n: any) => ({
           id: n.id,
           type: 'custom',
           position: n.position || { x: 0, y: 0 },
           data: { ...n, label: n.nodeName },
-          draggable: false, // 🚀 禁止拖動
+          draggable: false, 
           selectable: false,
         }));
 
-        // 轉換連線
         const flowEdges = (data.edges || []).map((e: any) => ({
           id: e.id,
           source: e.source,
           target: e.target,
-          animated: true, // 🚀 正式機連線保持動畫，代表正在運行
-          style: { stroke: '#f43f5e', strokeWidth: 2 }, // 改用紅色代表 Production
+          animated: true, 
+          style: { stroke: '#f43f5e', strokeWidth: 2 }, 
           markerEnd: { type: MarkerType.ArrowClosed, color: '#f43f5e' }
         }));
 
@@ -74,16 +72,16 @@ function ProductionCanvas() {
     return () => unsub();
   }, []);
 
-  if (loading) return <div className="h-full w-full flex items-center justify-center text-[#22c55e] animate-pulse font-black">CONNECTING TO PRODUCTION SERVER...</div>;
+  if (loading) return <div className="h-full w-full flex items-center justify-center text-[#22c55e] animate-pulse font-black italic tracking-widest">CONNECTING TO PRODUCTION SERVER...</div>;
 
   return (
     <div className="flex flex-col h-full bg-[#020617]">
-      {/* 頂部儀錶板 - 緊湊版 */}
+      {/* Dashboard Header */}
       <div className="p-6 bg-slate-900/50 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="bg-rose-500 p-2 rounded-xl"><ShieldCheck className="text-white" size={24} /></div>
+          <div className="bg-rose-500 p-2 rounded-xl shadow-[0_0_20px_rgba(244,63,94,0.3)]"><ShieldCheck className="text-white" size={24} /></div>
           <div>
-            <h1 className="text-xl font-black text-white italic tracking-tighter">PRODUCTION LIVE VIEW</h1>
+            <h1 className="text-xl font-black text-white italic tracking-tighter uppercase">Production Live View</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">目前線上環境真實狀態 (唯讀)</p>
           </div>
         </div>
@@ -99,12 +97,12 @@ function ProductionCanvas() {
           </div>
           <div className="text-right border-l border-white/10 pl-8">
             <div className="text-[9px] font-black text-rose-500 uppercase">最後發布時間</div>
-            <div className="text-xl font-black text-white">{stats.stats.lastDate}</div>
+            {/* 🚀 修復：正確的變數路徑 stats.lastDate */}
+            <div className="text-xl font-black text-white">{stats.lastDate}</div>
           </div>
         </div>
       </div>
 
-      {/* 畫布區域 */}
       <div className="flex-1 relative">
         <ReactFlow
           nodes={nodes}
@@ -115,12 +113,10 @@ function ProductionCanvas() {
           elementsSelectable={false}
           fitView
         >
-          {/* 使用暗紅色背景點陣，區別於編輯器 */}
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#451a1a" />
           <Controls />
         </ReactFlow>
 
-        {/* 浮動警告標籤 */}
         <div className="absolute bottom-6 right-6 px-4 py-2 bg-rose-600/20 border border-rose-500/50 rounded-full backdrop-blur-md flex items-center gap-2">
             <AlertTriangle size={14} className="text-rose-500 animate-pulse" />
             <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Read-Only Mode</span>
