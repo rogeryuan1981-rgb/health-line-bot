@@ -9,7 +9,6 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 關鍵修正 1：移除 opacity: 0，您的綠色小圓點與 Handle 回來了！
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     .react-flow__handle { pointer-events: none !important; cursor: default !important; }
@@ -17,7 +16,6 @@ const GlobalProdStyles = () => (
   `}} />
 );
 
-// 🚀 關鍵修正 2：恢復透明度邏輯，確保放在 Group 上的深淺對比正確
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -33,18 +31,18 @@ const CustomNodeProd = ({ data }: any) => {
   return (
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
-      <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
-        {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl border-2 border-black z-50 uppercase">🚀 START</div>}
+      <div className="flex flex-col items-center mb-4 relative text-white text-center">
+        {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl border-2 border-black z-50">🚀 START</div>}
         {data.globalKeyword && <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 border-2 border-slate-900 shadow-lg"><Globe size={12} /></div>}
         <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
-          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
+          {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.nodeName}
         </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/60 border border-white/10`}>{data.messageType}</div>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data.messageType}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
+          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
@@ -93,27 +91,12 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         const processedNodes = (raw.nodes || []).map((n: any) => {
-          const base: any = {
-            id: n.id, position: n.position, type: n.type,
-            data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
-            draggable: false
-          };
-          if (n.type === 'group') {
-            base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, borderRadius: '32px' };
-          }
+          const base: any = { id: n.id, position: n.position, type: n.type, data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel }, draggable: false };
+          if (n.type === 'group') base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300 };
           return base;
         });
         setNodes(processedNodes);
-        
-        // 🚀 關鍵修正 3：完整讀取發布過來的連線屬性（路徑風格、箭頭、虛線）
-        setEdges((raw.edges || []).map((e: any) => ({ 
-            ...e, 
-            animated: e.animated !== false, 
-            style: e.style || { stroke: '#deff9a', strokeWidth: 2 },
-            markerStart: e.markerStart || null,
-            markerEnd: e.markerEnd || null
-        })));
-
+        setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: e.animated !== false, style: e.style || { stroke: '#deff9a', strokeWidth: 2 }, markerStart: e.markerStart || null, markerEnd: e.markerEnd || null })));
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 500);
@@ -133,12 +116,14 @@ function ProductionCanvas() {
           <h1 className="text-[12px] font-black text-rose-500 italic uppercase tracking-widest">Monitoring</h1>
         </div>
       </div>
-      <div className="w-full h-full">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false} onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} onPaneClick={() => setSelectedId(null)}>
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
-          <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
-        </ReactFlow>
-        {selectedId && <div className="absolute right-0 top-0 h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right w-[450px] shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" /></div>}
+      <div className="w-full h-full flex overflow-hidden">
+        <div className="flex-1">
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false} onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} onPaneClick={() => setSelectedId(null)}>
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+            <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
+          </ReactFlow>
+        </div>
+        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" /></div>}
       </div>
     </div>
   );
