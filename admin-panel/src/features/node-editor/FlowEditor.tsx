@@ -12,7 +12,6 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
-// 🚀 視覺特效定義
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @keyframes smoothGlow {
@@ -20,25 +19,10 @@ const CustomStyles = () => (
       50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
       100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
     }
-    @keyframes flowEnergy {
-      from { stroke-dashoffset: 24; }
-      to { stroke-dashoffset: 0; }
-    }
-    .node-current-glow {
-      animation: smoothGlow 2.5s ease-in-out infinite !important;
-      z-index: 1000;
-    }
-    .node-visited {
-      border-color: #38bdf8 !important; 
-      box-shadow: 0 0 20px rgba(56,189,248,0.5) !important;
-    }
-    .edge-visited path {
-      stroke: #38bdf8 !important;
-      stroke-width: 5px !important;
-      stroke-dasharray: 12 12 !important;
-      animation: flowEnergy 0.8s linear infinite !important;
-      filter: drop-shadow(0 0 6px rgba(56,189,248,0.8)) !important;
-    }
+    @keyframes flowEnergy { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+    .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
+    .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
+    .edge-visited path { stroke: #38bdf8 !important; stroke-width: 5px !important; stroke-dasharray: 12 12 !important; animation: flowEnergy 0.8s linear infinite !important; filter: drop-shadow(0 0 6px rgba(56,189,248,0.8)) !important; }
   `}} />
 );
 
@@ -59,7 +43,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={opt.id || index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
+          <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
@@ -88,8 +72,6 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
     </div>
     <Handle type="source" position={Position.Right} id="business" isConnectable={isConnectable} style={{ top: '30%' }} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
     <Handle type="source" position={Position.Right} id="off-hours" isConnectable={isConnectable} style={{ top: '70%' }} className="w-3 h-3 bg-rose-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
-    <div className="absolute right-3 top-[22%] text-[9px] font-black text-emerald-400 drop-shadow-md">營業</div>
-    <div className="absolute right-3 top-[62%] text-[9px] font-black text-rose-400 drop-shadow-md">非營業</div>
   </div>
 );
 
@@ -113,7 +95,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const { getViewport, getNodes, getEdges } = useReactFlow(); 
+  const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
   const getNodeStyle = (type: string, isStart: boolean) => {
@@ -182,46 +164,40 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]); 
 
-  const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
-  const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
-  const addTimeRouterNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
+  const addNewNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
+  const addGroupBox = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
+  const addTimeRouterNode = async () => { const { x, y, zoom } = reactFlowInstance.getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "時間條件分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false }, position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 45 }, updatedAt: serverTimestamp() }); };
   const handleOpenSaveModal = () => { setSaveName(`自動回覆設定_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`); setShowSaveModal(true); };
   const executeSave = async () => { if (!saveName.trim()) return; setIsSaving(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "flowSnapshots"), { name: saveName.trim(), nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })), createdAt: serverTimestamp() }); setShowSaveModal(false); alert("✅ 儲存成功"); } catch (e) { alert("失敗"); } finally { setIsSaving(false); } };
   const loadSnapshot = async (snap: any) => { if (!window.confirm(`載入「${snap.name}」？`)) return; const batch = writeBatch(db); const nS = await getDocs(collection(db, "flowRules")); const eS = await getDocs(collection(db, "flowEdges")); nS.forEach(d => batch.delete(d.ref)); eS.forEach(d => batch.delete(d.ref)); snap.nodes.forEach((n: any) => { const { id, ...r } = n; batch.set(doc(db, "flowRules", id), r); }); snap.edges.forEach((e: any) => { const { id, ...r } = e; batch.set(doc(db, "flowEdges", id), r); }); await batch.commit(); setShowSnapshots(false); alert("✅ 載入成功"); };
   const executeSchedulePublish = async () => { if (!scheduleDate || !scheduleTime) { alert("請完整選擇日期與時間"); return; } const triggerDateTime = new Date(`${scheduleDate}T${scheduleTime}:00`); if (triggerDateTime <= new Date()) { alert("排程時間必須晚於目前時間"); return; } setIsScheduling(true); try { const nodeS = await getDocs(collection(db, "flowRules")); const edgeS = await getDocs(collection(db, "flowEdges")); await addDoc(collection(db, "scheduled_releases"), { triggerTime: triggerDateTime, status: 'pending', snapshot: { nodes: nodeS.docs.map(d => ({ id: d.id, ...d.data() })), edges: edgeS.docs.map(d => ({ id: d.id, ...d.data() })) }, createdAt: serverTimestamp() }); setShowScheduleModal(false); alert(`✅ 排程發布已成功設定於：\n${triggerDateTime.toLocaleString()}`); } catch (e) { alert("排程失敗，請重試"); } finally { setIsScheduling(false); } };
   const cancelSchedule = async () => { if (!pendingSchedule) return; if (!window.confirm("⚠️ 確定要取消目前的排程發布嗎？")) return; try { await updateDoc(doc(db, "scheduled_releases", pendingSchedule.id), { status: 'canceled', updatedAt: serverTimestamp() }); alert("✅ 已成功取消排程"); } catch(e) { alert("取消失敗"); } };
   
-  // 🚀 關鍵發布區域：毀滅式清洗所有 undefined 屬性
   const executePublish = async () => { 
     if (pendingSchedule && !window.confirm("⚠️ 警告：目前已有排程發布正在等候中！\n強制立即發布將會覆蓋正式環境。是否仍要繼續發布？")) return; 
     if (!pendingSchedule && !window.confirm("⚠️ 確定要將目前畫布的設定發布到正式環境，讓 LINE 機器人套用最新邏輯嗎？")) return; 
-    
     setIsPublishing(true); 
     try { 
-      // 🚀 手動映射屬性，絕不傳入整顆物件，確保沒有 undefined 或 React 元件
-      const rawNodes = getNodes();
-      const nodesToPublish = rawNodes.map(n => {
-        const cleaned: any = {
+      const flowObject = reactFlowInstance.toObject();
+      
+      const nodesToPublish = flowObject.nodes.map(n => {
+        // 🚀 強制座標絕對化，避免父子偏移
+        const clean: any = {
           id: n.id,
-          position: { 
-            x: (n.positionAbsolute?.x !== undefined) ? n.positionAbsolute.x : n.position.x, 
-            y: (n.positionAbsolute?.y !== undefined) ? n.positionAbsolute.y : n.position.y 
-          },
-          type: n.type || 'custom',
-          data: JSON.parse(JSON.stringify(n.data)), // 毀滅式清洗 data 內部的所有 undefined
-          parentNode: n.parentNode || null,
+          position: n.positionAbsolute || n.position,
+          type: n.type,
+          data: JSON.parse(JSON.stringify(n.data)),
           width: n.width || (n.style?.width ? parseInt(n.style.width as string) : null),
           height: n.height || (n.style?.height ? parseInt(n.style.height as string) : null),
-          messageType: n.data?.messageType || 'text',
-          nodeName: n.data?.nodeName || n.data?.label || 'Node'
+          parentNode: null // 拋棄層級關係，直接依賴絕對座標
         };
-        // 額外處理 group_box 的標籤
-        if (n.data?.customLabel) cleaned.customLabel = n.data.customLabel;
-        return cleaned;
+        // 額外確保 messageType 存在
+        if (n.data?.messageType) clean.messageType = n.data.messageType;
+        if (n.data?.nodeName) clean.nodeName = n.data.nodeName;
+        return clean;
       });
 
-      const rawEdges = getEdges();
-      const edgesToPublish = rawEdges.map(e => ({
+      const edgesToPublish = flowObject.edges.map(e => ({
         id: e.id,
         source: e.source,
         target: e.target,
@@ -230,20 +206,17 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         color: (e.style?.stroke as string) || '#deff9a'
       }));
 
-      const v = getViewport();
-      const viewportToPublish = { x: v.x, y: v.y, zoom: v.zoom };
-
       await setDoc(doc(db, "botConfig", "production"), { 
         nodes: nodesToPublish, 
         edges: edgesToPublish, 
-        viewport: viewportToPublish, 
+        viewport: flowObject.viewport, 
         publishedAt: serverTimestamp(),
-        publisher: "Roger"
+        publisher: "Roger" 
       }); 
 
-      alert("🚀 發布成功！監測畫面現在已 1:1 還原！"); 
+      alert("🚀 發布成功！正式環境配置已 1:1 同步。"); 
     } catch (e: any) { 
-      console.error("❌ 發布失敗詳細原因:", e);
+      console.error("❌ 發布失敗原因:", e);
       alert(`發布失敗：${e.message}`); 
     } finally { 
       setIsPublishing(false); 
