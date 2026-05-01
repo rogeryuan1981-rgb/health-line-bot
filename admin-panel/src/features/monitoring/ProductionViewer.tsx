@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
-  Controls, Background, BackgroundVariant, Node, Edge, 
+  Background, BackgroundVariant, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Globe, Clock, Flag } from 'lucide-react';
+import { ShieldCheck, Clock, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
 const GlobalProdStyles = () => (
@@ -19,23 +19,14 @@ const GlobalProdStyles = () => (
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆';
-  
-  const getBgColor = () => {
-    if (isStart) return 'bg-slate-900 border-yellow-400';
-    switch(data.messageType) {
-      case 'carousel': case 'flex': return 'bg-amber-950/90 border-amber-500';
-      case 'image': return 'bg-emerald-950/90 border-emerald-500';
-      case 'video': return 'bg-rose-950/90 border-rose-500';
-      default: return 'bg-blue-950/90 border-blue-500';
-    }
-  };
+  const getBg = () => isStart ? 'bg-slate-900 border-yellow-400' : 'bg-blue-950/90 border-blue-500';
 
   return (
-    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 ${getBgColor()} ${isStart ? 'node-prod-glow' : ''}`}>
-      <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
-      <div className="flex flex-col items-center mb-4 relative text-white">
-        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase">🚀 START</div>}
-        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 text-center break-words leading-tight">
+    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl flex flex-col p-3 text-white ${getBg()} ${isStart ? 'node-prod-glow' : ''}`}>
+      <Handle type="target" position={Position.Left} id="left_in" />
+      <div className="flex flex-col items-center mb-4 relative text-center">
+        {isStart && <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1">🚀 START</div>}
+        <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-2 break-words leading-tight">
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400" />}
           {data.nodeName}
         </div>
@@ -45,40 +36,28 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
-            {/* 🚀 關鍵修正：Handle ID 必須與編輯器 ID (opt_0, opt_1...) 完全一致 */}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} style={{ right: -10 }} />
+            {/* 🚀 關鍵修正：Handle ID 強制與編輯器同步 */}
+            <Handle type="source" position={Position.Right} id={`opt_${index}`} style={{ right: -10 }} />
           </div>
         ))}
       </div>
-      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" isConnectable={false} />}
+      {options.length === 0 && <Handle type="source" position={Position.Right} id="default_out" style={{ right: -10 }} />}
     </div>
   );
 };
 
 const GroupNodeProd = ({ data }: any) => {
   const isDone = data.customLabel === '已完成';
-  const isTodo = data.customLabel === '待處理';
-  const colorClass = isDone ? 'bg-emerald-600 border-emerald-400' : isTodo ? 'bg-amber-600 border-amber-400' : 'bg-blue-600 border-blue-400';
   return (
     <div className="w-full h-full relative">
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 text-white ${colorClass}`}>
+      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase shadow-2xl border-2 z-50 text-white ${isDone ? 'bg-emerald-600 border-emerald-400' : 'bg-blue-600 border-blue-400'}`}>
         {data.title || '區塊'}
       </div>
     </div>
   );
 };
 
-const TimeRouterNodeProd = ({ data }: any) => (
-  <div className="w-[200px] h-[90px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-2xl flex flex-col items-center justify-center relative text-white">
-    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
-    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-2 mb-1"><Clock size={16} className="text-indigo-400" />{data.nodeName}</div>
-    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">{data.config?.startTime} - {data.config?.endTime}</div>
-    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} isConnectable={false} />
-    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} isConnectable={false} />
-  </div>
-);
-
-const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
+const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd };
 
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -95,25 +74,19 @@ function ProductionCanvas() {
           const base: any = {
             id: n.id,
             position: n.position,
-            type: n.type,
+            type: n.type || 'custom',
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
-          // 🚀 關鍵：顯式設定 style.width/height，解決群組縮水問題
+          // 🚀 修正群組盒大小與樣式
           if (n.type === 'group') {
-            base.style = { 
-              width: Number(n.width) || 400, 
-              height: Number(n.height) || 300,
-              backgroundColor: n.customLabel === '已完成' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(59, 130, 246, 0.05)',
-              border: '2px dashed rgba(255,255,255,0.15)',
-              borderRadius: '32px'
-            };
+            base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, backgroundColor: 'rgba(255,255,255,0.02)', border: '2px dashed rgba(255,255,255,0.15)', borderRadius: '32px' };
           }
           return base;
         });
 
         setNodes(processedNodes);
-        setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color, strokeWidth: 3 } })));
+        setEdges((raw.edges || []).map((e: any) => ({ ...e, animated: true, style: { stroke: e.color || '#60a5fa', strokeWidth: 3 } })));
 
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
@@ -129,7 +102,7 @@ function ProductionCanvas() {
     <div className="flex flex-col h-full bg-[#020617] font-sans relative">
       <GlobalProdStyles />
       <div className="absolute top-8 left-8 z-50">
-        <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl backdrop-blur-xl flex items-center gap-5">
+        <div className="bg-slate-900/90 border border-white/10 p-5 rounded-3xl shadow-2xl flex items-center gap-5 backdrop-blur-xl">
           <div className="bg-rose-600 p-2.5 rounded-xl shadow-rose-600/30"><ShieldCheck className="text-white" size={24} /></div>
           <h1 className="text-[12px] font-black text-rose-500 italic uppercase">Production Monitoring</h1>
         </div>
@@ -149,9 +122,5 @@ function ProductionCanvas() {
 }
 
 export default function ProductionViewer() {
-  return (
-    <div className="flex-1 h-full overflow-hidden bg-[#020617]">
-      <ReactFlowProvider><ProductionCanvas /></ReactFlowProvider>
-    </div>
-  );
+  return <div className="flex-1 h-full overflow-hidden bg-[#020617]"><ReactFlowProvider><ProductionCanvas /></ReactFlowProvider></div>;
 }
