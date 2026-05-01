@@ -12,16 +12,16 @@ import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
 import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe } from 'lucide-react';
 
-// --- 子組件：標準訊息節點 (已升級動態 Handle) ---
+// --- 子組件：標準訊息節點 (已升級動態高度與自動包覆) ---
 const CustomNode = ({ data, isConnectable }: any) => {
   const options = data.options || [];
   const isStart = data.nodeName === '預設回覆';
 
   return (
-    <div className="w-full h-full relative flex flex-col justify-between p-2">
+    <div className="w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px]">
       <Handle type="target" position={Position.Top} id="top_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform" />
       
-      <div className="flex flex-col items-center mb-2 mt-1">
+      <div className="flex flex-col items-center mb-3 mt-1">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
         {data.globalKeyword && (
            <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900" title={`全域關鍵字: ${data.globalKeyword}`}>
@@ -32,14 +32,14 @@ const CustomNode = ({ data, isConnectable }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data.label}
         </div>
-        <div className={`mt-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>
+        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase border shadow-sm inline-block ${isStart ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-black/40 text-white/80 border-white/10'}`}>
           {data.messageType}
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5 w-full mt-auto">
+      <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
-          <div key={opt.id} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
+          <div key={opt.id || index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label}
             <Handle 
               type="source" 
@@ -130,15 +130,12 @@ function FlowContent() {
           return { id: d.id, type: 'timeRouter', position: data.position || { x: 100, y: 100 }, parentNode: data.parentNode || undefined, data: { nodeName: data.nodeName, config: data.config } };
         }
         
-        const optionCount = data.options?.length || data.buttons?.length || 0;
-        const dynamicHeight = optionCount > 0 ? 70 + (optionCount * 32) : 80;
-
+        // 🚀 關鍵修復：把高度固定改為 className 裡的 h-fit，讓外框自動長大
         return {
           id: d.id, type: 'custom', position: data.position || { x: 100, y: 100 },
           parentNode: data.parentNode || undefined,
           data: { label: data.nodeName || '新節點', messageType: data.messageType, options: data.buttons || data.options, globalKeyword: data.globalKeyword },
-          className: `border-2 shadow-2xl rounded-2xl w-[200px] transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`,
-          style: { height: dynamicHeight }
+          className: `border-2 shadow-2xl rounded-2xl w-[200px] h-fit transition-all duration-300 ${getNodeStyle(data.messageType, data.nodeName === '預設回覆')}`
         };
       }));
     });
