@@ -111,15 +111,12 @@ export function InteractiveSimulator({ onPathUpdate }: { onPathUpdate: (path: {n
     const [pathTracker, setPathTracker] = useState<{nodes: string[], edges: string[]}>({nodes: [], edges: []});
     
     const scrollRef = useRef<HTMLDivElement>(null);
-    const initialized = useRef(false); // 確保只發送一次起始訊息
+    const initialized = useRef(false); 
 
-    // 🚀 核心大升級：從 getDocs 改為即時監聽 onSnapshot，與畫布保持 100% 資料同步！
     useEffect(() => {
         const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
             const nData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             setNodes(nData);
-            
-            // 初次載入時觸發預設回覆
             if (!initialized.current) {
                 initialized.current = true;
                 const defaultNode = nData.find((n:any) => n.nodeName === '預設回覆');
@@ -152,34 +149,53 @@ export function InteractiveSimulator({ onPathUpdate }: { onPathUpdate: (path: {n
         setInputText("");
 
         let targetNode: any = null;
+        let matchedEdge: any = null;
         let tempNodes = [...pathTracker.nodes];
         let tempEdges = [...pathTracker.edges];
-
-        targetNode = nodes.find(n => n.isGlobal && n.nodeName === text);
-        if (targetNode) { tempNodes.push(targetNode.id); }
+        
+        // 🚀 標記是否為「空降」
+        let isTeleport = false;
 
         const currentNodeId = tempNodes[tempNodes.length - 1];
-        if (!targetNode && currentNodeId) {
+
+        // 1. 優先檢查實體連線
+        if (currentNodeId) {
             const current = nodes.find(n => n.id === currentNodeId);
             if (current) {
                 const options = current.options || current.buttons || [];
                 const idx = options.findIndex((o:any) => o.target === text || o.keyword === text || o.label === text);
                 if (idx !== -1) {
-                    const edge = edges.find(e => e.source === currentNodeId && e.sourceHandle === `opt_${idx}`);
-                    if (edge) {
-                        targetNode = nodes.find(n => n.id === edge.target);
-                        tempEdges.push(edge.id);
-                        tempNodes.push(targetNode.id);
+                    matchedEdge = edges.find(e => e.source === currentNodeId && e.sourceHandle === `opt_${idx}`);
+                    if (matchedEdge) {
+                        targetNode = nodes.find(n => n.id === matchedEdge.target);
                     }
                 }
             }
         }
 
+        // 2. 如果沒有實體連線，啟動全域任意門
+        if (!targetNode) {
+            targetNode = nodes.find(n => n.isGlobal && n.nodeName === text);
+            if (targetNode) isTeleport = true; // 確定是傳送門空降
+        }
+
+        // 3. 兜底 (預設回覆)
         if (!targetNode) {
             targetNode = nodes.find(n => n.nodeName === '預設回覆');
-            if (targetNode) tempNodes.push(targetNode.id);
+            if (targetNode) isTeleport = true; // 被踢回預設回覆也算一種空降重置
         }
+        
         if (!targetNode) return;
+
+        // 🚀 核心修復：落實「做全套」！如果是傳送門空降，徹底斬斷歷史軌跡！
+        if (isTeleport) {
+            tempNodes = [targetNode.id]; // 舊的足跡全部丟掉，只保留新起點
+            tempEdges = [];
+        } else {
+            // 實體走路，正常延續足跡
+            if (matchedEdge) tempEdges.push(matchedEdge.id);
+            tempNodes.push(targetNode.id);
+        }
 
         let renderNode = targetNode;
         let loopCount = 0;
@@ -187,8 +203,6 @@ export function InteractiveSimulator({ onPathUpdate }: { onPathUpdate: (path: {n
         while(renderNode && renderNode.messageType === 'time_router' && loopCount < 5) {
             loopCount++;
             const config = renderNode.config || {};
-            
-            // 🚀 強制校準為 UTC+8 台灣時間，保證與 Webhook 行為一致
             const now = new Date();
             const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
             const twDate = new Date(utc + (3600000 * 8));
