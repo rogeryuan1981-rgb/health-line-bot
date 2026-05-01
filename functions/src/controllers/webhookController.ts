@@ -19,7 +19,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
         return; 
     }
 
-    // 👉 1. 一次性讀取已發布的地圖配置 (零成本快取策略)
     const configSnap = await db.doc("botConfig/production").get();
     if (!configSnap.exists) {
         console.error("尚未發布任何 botConfig/production 地圖");
@@ -35,10 +34,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const userId = event.source.userId;
         let targetNode: any = null;
 
-        // 👉 引擎 1：全域攔截 (任意門)
+        // 🚀 引擎 1：全域攔截 (任意門) - 嚴格限制只有 isGlobal 開啟時才生效
         targetNode = nodes.find((n: any) => 
-            (n.globalKeyword && n.globalKeyword.trim() === userMsg) || 
-            (n.nodeName && n.nodeName.trim() === userMsg)
+            n.isGlobal === true && n.nodeName && n.nodeName.trim() === userMsg
         );
 
         // 👉 引擎 2：狀態尋徑 (若沒命中全域字)
@@ -50,7 +48,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
                 if (currentNode) {
                     const options = currentNode.options || currentNode.buttons || [];
-                    // 找出使用者輸入的字，對應到哪一個按鈕/選項
                     const matchedIndex = options.findIndex((opt: any) => 
                         (opt.target && opt.target.trim() === userMsg) ||
                         (opt.keyword && opt.keyword.trim() === userMsg) ||
@@ -58,7 +55,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     );
 
                     if (matchedIndex !== -1) {
-                        // 順著該按鈕專屬的連線找到下一站
                         const edge = edges.find((e: any) => e.source === currentNodeId && e.sourceHandle === `opt_${matchedIndex}`);
                         if (edge) {
                             targetNode = nodes.find((n: any) => n.id === edge.target);
@@ -68,18 +64,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
         }
 
-        // 👉 兜底防呆：如果都沒有命中，回到預設回覆
+        // 👉 兜底防呆：回到預設回覆
         if (!targetNode) {
             targetNode = nodes.find((n: any) => n.nodeName === '預設回覆');
         }
 
-        if (!targetNode) return null; // 畫布上連預設回覆都沒有，放棄處理
+        if (!targetNode) return null;
 
         // 👉 核心邏輯：處理「隱形節點」 (如 Time Router 時間分流)
         let currentNodeToRender = targetNode;
         let loopCount = 0;
 
-        // 使用 while 迴圈是為了解決未來可能有多個邏輯節點串連的情況 (加上保險絲 loopCount 避免無限死迴圈)
         while (currentNodeToRender && currentNodeToRender.messageType === 'time_router' && loopCount < 5) {
             loopCount++;
             const config = currentNodeToRender.config || {};
@@ -97,9 +92,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             if (!isForceOff) {
                 const startTime = config.startTime || "09:00";
                 const endTime = config.endTime || "18:00";
-                // 判斷時間是否在區間內
                 if (currentTwTimeStr >= startTime && currentTwTimeStr <= endTime) {
-                    // 若有設定特定營業日 (0=週日, 1=週一)
                     const day = twDate.getDay();
                     if (config.workDays && Array.isArray(config.workDays)) {
                         if (config.workDays.includes(day)) isBusiness = true;
@@ -109,22 +102,20 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 }
             }
 
-            // 根據判斷結果，選擇要走綠色點(營業)還是紅色點(非營業)
             const handleToFollow = isBusiness ? 'business' : 'off-hours';
             const nextEdge = edges.find((e: any) => e.source === currentNodeToRender.id && e.sourceHandle === handleToFollow);
 
             if (nextEdge) {
                 currentNodeToRender = nodes.find((n: any) => n.id === nextEdge.target);
             } else {
-                currentNodeToRender = null; // 畫布上沒牽線，直接中斷
+                currentNodeToRender = null; 
             }
         }
 
-        // 如果最終找不到可以渲染的視覺節點，就結束
         if (!currentNodeToRender || currentNodeToRender.messageType === 'time_router') return null;
 
         // ==========================================
-        // 渲染節點內容 (保留羅傑大大堅固的 Flex 封裝邏輯)
+        // 渲染節點內容 
         // ==========================================
         const data = currentNodeToRender;
         let reply: any;
