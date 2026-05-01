@@ -6,37 +6,50 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Globe, Clock } from 'lucide-react';
+import { ShieldCheck, Globe, Clock, AlertTriangle, Flag } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 強制注入全域樣式：解決節點變白、邊框消失、與連線吸附問題
+// 🚀 強制注入全域樣式：解決連線吸附、發光特效與隱形 Handle 定位
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
-    .react-flow__node-custom { cursor: pointer !important; }
-    .react-flow__node-group { pointer-events: none !important; z-index: -1 !important; }
+    @keyframes smoothGlow {
+      0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
+      50% { box-shadow: 0 0 25px rgba(244,63,94,1); border-color: rgba(244,63,94,1); }
+      100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); border-color: rgba(244,63,94,0.5); }
+    }
+    .node-prod-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; }
     .react-flow__handle { 
         opacity: 0 !important; 
-        width: 6px !important; 
-        height: 6px !important; 
-        right: -3px !important; 
-        background: transparent !important;
+        width: 8px !important; 
+        height: 8px !important; 
+        right: -4px !important; 
+        pointer-events: none !important;
     }
     .react-flow__edge-path { stroke-width: 2.5px !important; }
   `}} />
 );
 
-// --- 🚀 核心渲染組件 (1:1 復刻編輯器邏輯) ---
+// --- 🚀 核心渲染組件 (1:1 復刻編輯器邏輯，確保圖示正確使用) ---
 
 const CustomNodeProd = ({ data }: any) => {
   const options = data.options || data.buttons || [];
   const isStart = data.nodeName === '預設回覆' || data.label === '預設回覆';
   
   return (
-    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl bg-slate-900 flex flex-col p-3 transition-all ${isStart ? 'border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]' : 'border-slate-700'}`}>
+    <div className={`w-[200px] min-h-[80px] rounded-2xl border-2 shadow-2xl bg-slate-900 flex flex-col p-3 transition-all ${isStart ? 'border-yellow-400 node-prod-glow' : 'border-slate-700'}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
       
       <div className="flex flex-col items-center mb-4 relative">
-        {isStart && <div className="absolute -top-7 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase">Start</div>}
+        {isStart && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-3 py-0.5 rounded-full font-black text-[10px] border border-black uppercase flex items-center gap-1 shadow-lg">
+                <Flag size={10} className="fill-black"/> START
+            </div>
+        )}
+        {data.isGlobal && (
+            <div className="absolute -top-3 -right-3 bg-indigo-500 text-white rounded-full p-1 shadow-lg border-2 border-slate-900">
+                <Globe size={12} />
+            </div>
+        )}
         <div className="font-black text-sm text-white text-center break-words w-full px-1">{data.label || data.nodeName}</div>
         <div className="mt-1 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
             {data.messageType || 'MESSAGE'}
@@ -64,7 +77,22 @@ const GroupNodeProd = ({ data }: any) => (
   </div>
 );
 
-const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd };
+const TimeRouterNodeProd = ({ data }: any) => (
+  <div className="w-[200px] h-[95px] bg-indigo-950/90 border-[3px] border-indigo-500 rounded-2xl shadow-[0_0_25px_rgba(99,102,241,0.4)] flex flex-col items-center justify-center relative">
+    <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} />
+    <div className="font-black text-sm tracking-wide flex items-center justify-center gap-1.5 w-full px-4 text-indigo-100 mb-1">
+        <Clock size={16} className="text-indigo-400" />
+        <span>{data.nodeName}</span>
+    </div>
+    <div className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-black/40 text-indigo-300 border-indigo-500/30">
+      {data.config?.forceOffHours ? <span className="text-rose-400 font-black italic text-[9px]">🚨 FORCE OFF</span> : `${data.config?.startTime || '09:00'} - ${data.config?.endTime || '18:00'}`}
+    </div>
+    <Handle type="source" position={Position.Right} id="business" style={{ top: '30%' }} isConnectable={false} />
+    <Handle type="source" position={Position.Right} id="off-hours" style={{ top: '70%' }} isConnectable={false} />
+  </div>
+);
+
+const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 // --- 🚀 主畫布 ---
 
@@ -82,19 +110,15 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
-        // 🚀 強制還原 1：節點特徵再辨識
         const flowNodes = (raw.nodes || []).map((n: any) => {
-          const isGroup = n.messageType === 'group_box' || (n.width && n.height && !n.options);
-          
-          if (isGroup) {
+          const base = { id: n.id, position: n.position, draggable: false, selectable: true };
+          if (n.messageType === 'group_box' || (n.width && n.height && !n.options)) {
             const isDone = n.customLabel === '已完成';
             const isTodo = n.customLabel === '待處理';
             return {
-              id: n.id,
-              position: n.position,
+              ...base,
               type: 'group',
               style: { width: n.width, height: n.height },
-              draggable: false,
               data: {
                 title: n.nodeName,
                 color: isDone ? 'border-emerald-500/50 bg-emerald-500/10' : isTodo ? 'border-amber-500/50 bg-amber-500/10' : 'border-blue-500/30 bg-blue-500/5',
@@ -103,36 +127,30 @@ function ProductionCanvas() {
               zIndex: -1
             };
           }
-
+          if (n.messageType === 'time_router') return { ...base, type: 'timeRouter', data: { ...n } };
           return {
-            id: n.id,
-            position: n.position,
+            ...base,
             type: 'custom',
-            draggable: false,
             data: { ...n, label: n.nodeName }
           };
         });
 
-        // 🚀 強制還原 2：連線色彩與動畫
         const flowEdges = (raw.edges || []).map((e: any) => ({
           ...e,
           animated: true,
-          style: { stroke: e.color || '#60a5fa', strokeWidth: 2.5 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa', width: 20, height: 20 }
+          style: { stroke: e.color || '#60a5fa', strokeWidth: 2.5, strokeDasharray: '5 5' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: e.color || '#60a5fa' }
         }));
 
         setNodes(flowNodes);
         setEdges(flowEdges);
         setStats({ nodes: flowNodes.length, lastDate: raw.publishedAt?.toDate ? raw.publishedAt.toDate().toLocaleString() : '未知' });
 
-        // 🚀 強制還原 3：縮放比例同步
         if (!initRef.current) {
             const saved = localStorage.getItem('flow-viewport');
             if (saved) {
                 const { x, y, zoom } = JSON.parse(saved);
                 setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 200);
-            } else {
-                setTimeout(() => setViewport({ x: 0, y: 0, zoom: 0.8 }), 200);
             }
             initRef.current = true;
         }
@@ -145,19 +163,23 @@ function ProductionCanvas() {
     <div className="flex flex-col h-full bg-[#020617] overflow-hidden relative">
       <GlobalProdStyles />
       
-      {/* 🚀 懸浮監測卡片 (位置移至左上角，完全淨空 Roger 帳號區) */}
+      {/* 🚀 懸浮監測卡片 (絕對不遮擋 Roger 帳號資訊) */}
       <div className="absolute top-6 left-6 z-50 pointer-events-none">
         <div className="bg-slate-900/90 border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 pointer-events-auto">
           <div className="bg-rose-600 p-2 rounded-lg shadow-lg shadow-rose-600/20"><ShieldCheck className="text-white" size={20} /></div>
           <div>
             <h1 className="text-[10px] font-black text-rose-500 italic tracking-widest uppercase leading-none">Production Monitoring</h1>
-            <p className="text-[11px] text-white font-bold mt-1 tracking-tight">最後發布：{stats.lastDate}</p>
+            <p className="text-[11px] text-white font-bold mt-1 tracking-tight">線上版本：{stats.lastDate}</p>
           </div>
           <div className="h-8 w-px bg-white/10 mx-2" />
           <div className="text-center">
             <div className="text-[9px] font-black text-slate-500 uppercase">Nodes</div>
             <div className="text-lg font-black text-white leading-none">{stats.nodes}</div>
           </div>
+        </div>
+        <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl flex items-center gap-2 w-fit mt-2 pointer-events-auto">
+            <AlertTriangle size={12} className="text-rose-500 animate-pulse" />
+            <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Monitor Mode</span>
         </div>
       </div>
 
@@ -169,7 +191,7 @@ function ProductionCanvas() {
             onPaneClick={() => setSelectedNodeId(null)}
             nodesDraggable={false} panOnScroll
           >
-            <Background variant={BackgroundVariant.Lines} gap={40} color="#1e293b" />
+            <Background variant={BackgroundVariant.Dots} gap={20} color="#334155" />
             <Controls position="bottom-right" />
           </ReactFlow>
         </div>
