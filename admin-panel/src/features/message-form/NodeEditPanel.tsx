@@ -29,7 +29,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
-  
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
@@ -58,41 +57,53 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
 
+    // 🚀 智慧連線優化邏輯
     if (nodeData.buttons && nodeData.buttons.length > 0 && nodeData.messageType !== 'time_router') {
       try {
-        const rulesSnap = await getDocs(collection(db, "flowRules"));
         const edgesSnap = await getDocs(collection(db, "flowEdges"));
-        
-        const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const allEdges: any[] = edgesSnap.docs.map(d => d.data());
+        const allEdges = edgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        for (const [index, btn] of nodeData.buttons.entries()) {
-          const targetKeyword = btn.target?.trim();
-          if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
+        // 檢查該節點是否「已經有任何輸出連線」
+        const hasExistingOutEdges = allEdges.some((e: any) => e.source === nodeId);
 
-          const matchedNodes = allNodes.filter(n => {
-            if (n.id === nodeId) return false;
-            const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
-            return keywords.includes(targetKeyword) || (n.isGlobal && n.nodeName === targetKeyword);
-          });
+        // 🚀 關鍵：只有在「完全沒有輸出連線」的情況下，才啟動智慧連線掃描
+        if (!hasExistingOutEdges) {
+          const rulesSnap = await getDocs(collection(db, "flowRules"));
+          const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-          if (matchedNodes.length > 0) {
-            const targetNodeId = matchedNodes[0].id;
-            const dynamicSourceHandle = `opt_${index}`;
-            const edgeExists = allEdges.some(e => e.source === nodeId && e.target === targetNodeId && e.sourceHandle === dynamicSourceHandle);
+          for (const [index, btn] of nodeData.buttons.entries()) {
+            const targetKeyword = btn.target?.trim();
+            if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
 
-            if (!edgeExists) {
-              await addDoc(collection(db, "flowEdges"), {
-                source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', 
-                color: '#60a5fa', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp()
-              });
+            const matchedNodes = allNodes.filter(n => {
+              if (n.id === nodeId) return false;
+              const keywords = (n.nodeName || "").split(',').map((k: string) => k.trim());
+              return keywords.includes(targetKeyword) || (n.isGlobal && n.nodeName === targetKeyword);
+            });
+
+            if (matchedNodes.length > 0) {
+              const targetNodeId = matchedNodes[0].id;
+              const dynamicSourceHandle = `opt_${index}`;
+
+              // 再次確認這條特定分支是否已連線（防呆）
+              const specificEdgeExists = allEdges.some((e: any) => 
+                e.source === nodeId && e.sourceHandle === dynamicSourceHandle
+              );
+
+              if (!specificEdgeExists) {
+                await addDoc(collection(db, "flowEdges"), {
+                  source: nodeId, target: targetNodeId, sourceHandle: dynamicSourceHandle, targetHandle: 'left_in', 
+                  color: '#60a5fa', strokeWidth: 2, dashed: true, arrowDirection: 'forward', pathType: 'smoothstep', createdAt: serverTimestamp()
+                });
+              }
             }
           }
         }
       } catch (error) {
-        console.error("自動連線處理失敗", error);
+        console.error("智慧連線救援處理失敗", error);
       }
     }
+
     setIsSaving(false);
     alert("✅ 配置已儲存！");
   };
@@ -217,7 +228,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                     <input value={nodeData.nodeName || ""} onChange={e => setNodeData({...nodeData, nodeName: e.target.value})} className="w-full bg-slate-900 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-[#deff9a]" placeholder="例如: 上下班時間判定" />
                 </div>
 
-                {/* 🚀 關鍵解封：讓時間節點也擁有全域觸發開關！ */}
                 <div className="flex items-center justify-between bg-indigo-950/30 p-4 rounded-xl border border-indigo-500/30">
                   <div className="flex items-center gap-3">
                     <Globe size={18} className={nodeData.isGlobal ? "text-indigo-400" : "text-slate-600"} />
@@ -314,13 +324,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                     ))}
                 </div>
 
-                {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
-                    <div className="flex gap-2 bg-slate-900 p-1 rounded-xl">
-                      <button onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準尺寸</button>
-                      <button onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型尺寸</button>
-                    </div>
-                )}
-
                 <div className="space-y-4 border-t border-white/5 pt-4">
                     {nodeData.messageType === 'text' && (
                         <div className="space-y-2">
@@ -414,11 +417,6 @@ export default function NodeEditPanel({ nodeId, onClose }: { nodeId: string | nu
                             <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-full transition-colors"><Trash2 size={12}/></button>
                         </div>
                     ))}
-                    {(!nodeData.buttons || nodeData.buttons.length === 0) && (
-                        <div className="text-center p-3 text-slate-500 text-[10px] font-bold border border-dashed border-white/10 rounded-lg">
-                           目前無分支，系統將提供單一預設連線點。
-                        </div>
-                    )}
                 </div>
             </div>
           )}
