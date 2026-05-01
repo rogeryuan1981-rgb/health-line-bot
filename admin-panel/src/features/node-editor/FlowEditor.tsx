@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactFlow, { 
   Controls, Background, applyNodeChanges, applyEdgeChanges, 
   Node, Edge, BackgroundVariant, Connection, ConnectionMode, MarkerType,
@@ -70,7 +70,6 @@ const TimeRouterNode = ({ data, isConnectable }: any) => (
 
 const nodeTypes = { custom: CustomNode, group: GroupNode, timeRouter: TimeRouterNode };
 
-// 🚀 接收 activeSimulatorNodeId Props
 function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string | null }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -90,7 +89,7 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
   
-  const { getViewport, setCenter } = useReactFlow(); // 🚀 引入 setCenter 運鏡魔法
+  const { getViewport, setCenter } = useReactFlow(); 
 
   const getNodeStyle = (type: string, isStart: boolean) => {
     if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
@@ -147,7 +146,6 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); unsubSchedule(); };
   }, []);
 
-  // 🚀 核心亮點：當接收到模擬器的觸發，幫節點加上粉紅脈衝光，並自動運鏡！
   useEffect(() => {
     if (activeSimulatorNodeId) {
         setNodes(nds => nds.map(n => {
@@ -158,13 +156,12 @@ function FlowContent({ activeSimulatorNodeId }: { activeSimulatorNodeId?: string
             return { ...n, className: baseClass.trim() };
         }));
 
-        // 自動對焦該節點
         const activeNode = nodes.find(n => n.id === activeSimulatorNodeId);
         if (activeNode) {
             setCenter(activeNode.position.x + 100, activeNode.position.y + 40, { zoom: 1.2, duration: 800 });
         }
     }
-  }, [activeSimulatorNodeId, setCenter]); // 注意：不能把 nodes 放入 dependency 否則會無限迴圈
+  }, [activeSimulatorNodeId, setCenter]); 
 
   const addNewNode = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新關鍵字", messageType: "text", position: { x: (window.innerWidth / 2 - x) / zoom - 100, y: (window.innerHeight / 2 - y) / zoom - 40 }, updatedAt: serverTimestamp() }); };
   const addGroupBox = async () => { const { x, y, zoom } = getViewport(); await addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", customLabel: "規劃中", width: 400, height: 300, position: { x: (window.innerWidth / 2 - x) / zoom - 200, y: (window.innerHeight / 2 - y) / zoom - 150 }, updatedAt: serverTimestamp() }); };
