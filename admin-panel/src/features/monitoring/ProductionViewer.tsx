@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
-  Background, BackgroundVariant, Node, Edge, 
+  Background, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ShieldCheck, Clock, Flag } from 'lucide-react';
-import NodeEditPanel from '../message-form/NodeEditPanel';
+import { ShieldCheck, Flag } from 'lucide-react';
 
 const GlobalProdStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -36,7 +35,7 @@ const CustomNodeProd = ({ data }: any) => {
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center text-slate-300">
             {opt.label}
-            {/* 🚀 關鍵修正：Handle ID 強制與編輯器同步 */}
+            {/* 🚀 Handle ID 精準匹配連線 */}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} style={{ right: -10 }} />
           </div>
         ))}
@@ -62,7 +61,6 @@ const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd };
 function ProductionCanvas() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
   const initRef = useRef(false);
 
@@ -78,7 +76,6 @@ function ProductionCanvas() {
             data: { ...n.data, nodeName: n.nodeName, messageType: n.messageType, customLabel: n.customLabel },
             draggable: false
           };
-          // 🚀 修正群組盒大小與樣式
           if (n.type === 'group') {
             base.style = { width: Number(n.width) || 400, height: Number(n.height) || 300, backgroundColor: 'rgba(255,255,255,0.02)', border: '2px dashed rgba(255,255,255,0.15)', borderRadius: '32px' };
           }
@@ -108,14 +105,9 @@ function ProductionCanvas() {
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false} onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} onPaneClick={() => setSelectedId(null)}>
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e293b" />
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} nodesDraggable={false}>
+          <Background gap={20} size={1} color="#1e293b" />
         </ReactFlow>
-        {selectedId && (
-          <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right">
-             <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
-          </div>
-        )}
       </div>
     </div>
   );
