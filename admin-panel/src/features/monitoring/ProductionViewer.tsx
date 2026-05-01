@@ -91,6 +91,9 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
+        // 🚀 關鍵防禦：篩選出正式機設定中「真的活著」的節點 ID
+        const validIds = new Set((raw.nodes || []).filter(Boolean).map((n: any) => n.id));
+        
         const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => {
           const base: any = {
             id: n.id,
@@ -100,7 +103,8 @@ function ProductionCanvas() {
             style: n.style || {} 
           };
           
-          if (n.parentNode) {
+          // 🚀 關鍵防禦：過濾掉已經刪除的 parentNode
+          if (n.parentNode && validIds.has(n.parentNode)) {
               base.parentNode = n.parentNode;
           }
           
@@ -161,8 +165,7 @@ function ProductionCanvas() {
             <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
           </ReactFlow>
         </div>
-        {/* 🚀 關鍵修復：刪除會造成資料庫讀取報錯的 sourceCollection，直接讓面板回到最正常的讀取模式 */}
-        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} /></div>}
+        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" /></div>}
       </div>
     </div>
   );
