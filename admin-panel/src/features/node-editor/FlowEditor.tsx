@@ -322,7 +322,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         onNodesDelete={onNodesDelete}
         onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
         onNodeDragStop={onNodeDragStop}
-        // 🚀 關鍵修復三：補上遺漏的畫布位置存檔邏輯！這樣下次進來才會在原本的地方。
         onMoveEnd={(_, viewport) => localStorage.setItem('flow-viewport', JSON.stringify(viewport))}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
@@ -337,4 +336,3 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 export default function FlowEditor({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   return <div className="w-full h-full bg-[#020617] overflow-hidden font-sans"><ReactFlowProvider><FlowContent activePath={activePath} /></ReactFlowProvider></div>;
 }
-```</ReactFlow>
