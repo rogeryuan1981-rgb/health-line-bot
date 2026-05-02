@@ -10,7 +10,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 加入明確的 CustomEdgeData 型別，解決 TypeScript 編譯錯誤
+// 🚀 加入明確的 CustomEdgeData 型別
 interface CustomEdgeData {
   color?: string;
   strokeWidth?: number;
@@ -18,7 +18,7 @@ interface CustomEdgeData {
   [key: string]: any;
 }
 
-// 擴充原生的 Edge 型別，讓 data 屬性不再是 unknwon
+// 擴充原生的 Edge 型別
 type AppEdge = Edge<CustomEdgeData>;
 
 const CustomStyles = () => (
@@ -98,9 +98,9 @@ const TimeRouterNodeProd = ({ data }: any) => (
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([]);
-  // 🚀 指定 Edge 的型別為 AppEdge
-  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge[]>([]);
+  // 🚀 核心修復：拔除陣列符號 []，傳入正確的元素型別
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge>([]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
@@ -173,7 +173,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         setEdges(eds => eds.map(e => {
             const isVisited = activePath.edges?.includes(e.id) || false;
             
-            // 🚀 正確讀取自訂義的 data 屬性，不再引發 TypeScript 錯誤
             const defaultColor = e.data?.color || '#deff9a';
             const defaultWidth = Number(e.data?.strokeWidth) || 2;
             const defaultDashed = e.data?.dashed !== false;
@@ -213,7 +212,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesConnectable={false}
             elementsSelectable={true} 
             onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange as any} // 🚀 忽略內部泛型差異，專注外部渲染
+            onEdgesChange={onEdgesChange as any} 
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
@@ -232,3 +231,4 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
 export default function ProductionViewer({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   return <div className="w-full h-full bg-[#020617]"><ReactFlowProvider><ProductionCanvas activePath={activePath} /></ReactFlowProvider></div>;
 }
+```</Node[]></AppEdge[]>
