@@ -99,74 +99,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
-  // 自動清理不合法連線 (確保資料庫衛生)
-  useEffect(() => {
-      const healDatabase = async () => {
-          try {
-              const [nSnap, eSnap] = await Promise.all([
-                  getDocs(collection(db, "flowRules")),
-                  getDocs(collection(db, "flowEdges"))
-              ]);
-              const validNodes = new Map();
-              nSnap.docs.forEach(d => validNodes.set(d.id, d.data()));
-
-              const edgesData = eSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
-              edgesData.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-
-              const occupiedSockets = new Set<string>();
-              const trashIds = new Set<string>();
-
-              for (const e of edgesData) {
-                  if (!validNodes.has(e.source) || !validNodes.has(e.target)) {
-                      trashIds.add(e.id);
-                      continue;
-                  }
-
-                  const sNode = validNodes.get(e.source);
-                  let isValidHandle = true;
-
-                  if (sNode.messageType === 'time_router') {
-                      isValidHandle = (e.sourceHandle === 'business' || e.sourceHandle === 'off-hours');
-                  } else {
-                      const opts = sNode.options || sNode.buttons || [];
-                      if (opts.length > 0) {
-                          if (!e.sourceHandle || !e.sourceHandle.startsWith('opt_')) {
-                              isValidHandle = false;
-                          } else {
-                              const idx = parseInt(e.sourceHandle.replace('opt_', ''), 10);
-                              if (isNaN(idx) || idx < 0 || idx >= opts.length) isValidHandle = false;
-                          }
-                      } else {
-                          if (e.sourceHandle && e.sourceHandle.startsWith('opt_')) {
-                              isValidHandle = false;
-                          }
-                      }
-                  }
-
-                  if (!isValidHandle) {
-                      trashIds.add(e.id);
-                      continue;
-                  }
-
-                  const socketKey = `${e.source}_${e.sourceHandle || 'default'}`;
-                  if (occupiedSockets.has(socketKey)) {
-                      trashIds.add(e.id);
-                      continue;
-                  }
-                  
-                  occupiedSockets.add(socketKey);
-              }
-
-              const deletePromises = Array.from(trashIds).map(id => deleteDoc(doc(db, "flowEdges", id)));
-              await Promise.all(deletePromises);
-          } catch (err) {
-              console.error("DB Auto-heal failed", err);
-          }
-      };
-
-      healDatabase();
-  }, []);
-
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       let parsedNodes = snap.docs.map(d => {
@@ -192,7 +124,11 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         return base;
       });
 
-      parsedNodes.sort((a, _) => (a.type === 'group' ? -1 : 1));
+      parsedNodes.sort((a, b) => {
+          if (a.type === 'group' && b.type !== 'group') return -1;
+          if (a.type !== 'group' && b.type === 'group') return 1;
+          return 0;
+      });
       setNodes(parsedNodes);
     });
     
@@ -203,7 +139,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             id: d.id, source: data.source, target: data.target,
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' },
-            // 🚀 核心解法：強制將所有連線圖層拉到最高，並加寬點擊範圍，確保您能輕鬆點到它並刪除！
             zIndex: 100,
             interactionWidth: 25 
         };
@@ -334,9 +269,14 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: n.parentNode
       }));
 
-      nodesToPublish.sort((a: any, _: any) => (a.type === 'group' ? -1 : 1));
+      nodesToPublish.sort((a: any, b: any) => {
+          if (a.type === 'group' && b.type !== 'group') return -1;
+          if (a.type !== 'group' && b.type === 'group') return 1;
+          return 0;
+      });
 
-      const edgesToPublish = flowObject.edges.map(e => sanitize({
+      // 核心修正：不取 flowObject.edges (暫存狀態)，而是直接讀取元件真實狀態 edges (確保與 Firebase 同步)
+      const edgesToPublish = edges.map(e => sanitize({
         id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
         type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
