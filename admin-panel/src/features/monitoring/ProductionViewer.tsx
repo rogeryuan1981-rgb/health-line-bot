@@ -79,7 +79,7 @@ const TimeRouterNodeProd = ({ data }: any) => (
 
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
-function ProductionCanvas() {
+function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -123,15 +123,13 @@ function ProductionCanvas() {
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
-            
             if (!cleanEdge.targetHandle) cleanEdge.targetHandle = 'left_in';
-            
             return cleanEdge;
         });
         
         setEdges(safeEdges);
 
-        // 🚀 關鍵修復：直接設定 viewport，不再使用 setTimeout 和 duration 動畫
+        // 🚀 一步到位：直接設置座標，無動畫延遲
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setViewport({ x, y, zoom });
@@ -141,6 +139,40 @@ function ProductionCanvas() {
     });
     return () => unsub();
   }, [setViewport]);
+
+  // 🚀 完整還原模擬器路徑追蹤特效 (節點閃爍 + 連線變粗發光)
+  useEffect(() => {
+    if (activePath && activePath.nodes && activePath.edges) {
+        setNodes(nds => nds.map(n => {
+            const isCurrent = activePath.nodes?.length ? n.id === activePath.nodes[activePath.nodes.length - 1] : false;
+            const isVisited = activePath.nodes?.includes(n.id) && !isCurrent;
+            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            return { ...n, className: clean };
+        }));
+
+        setEdges(eds => eds.map(e => {
+            const isVisited = activePath.edges?.includes(e.id) || false;
+            const defaultColor = e.data?.color || '#deff9a';
+            const defaultWidth = Number(e.data?.strokeWidth) || 2;
+            const defaultDashed = e.data?.dashed !== false;
+            
+            return {
+                ...e,
+                animated: isVisited ? true : defaultDashed,
+                style: {
+                    ...e.style,
+                    stroke: isVisited ? '#38bdf8' : defaultColor,
+                    strokeWidth: isVisited ? 4 : defaultWidth,
+                    filter: isVisited ? 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' : 'none',
+                    strokeDasharray: (!isVisited && defaultDashed) ? '5 5' : 'none'
+                },
+                zIndex: isVisited ? 1000 : 100
+            };
+        }));
+    }
+  }, [activePath]);
 
   return (
     <div className="w-full h-full bg-[#020617] font-sans relative overflow-hidden">
@@ -167,12 +199,15 @@ function ProductionCanvas() {
             <Controls position="bottom-right" className="!bg-slate-900 !border-white/10 !fill-white" />
           </ReactFlow>
         </div>
-        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative"><NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" /></div>}
+        {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative">
+          {/* 🚀 拔除了錯誤的 sourceCollection，讓卡片恢復正常讀取 */}
+          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} />
+        </div>}
       </div>
     </div>
   );
 }
 
-export default function ProductionViewer() {
-  return <div className="w-full h-full bg-[#020617]"><ReactFlowProvider><ProductionCanvas /></ReactFlowProvider></div>;
+export default function ProductionViewer({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
+  return <div className="w-full h-full bg-[#020617]"><ReactFlowProvider><ProductionCanvas activePath={activePath} /></ReactFlowProvider></div>;
 }
