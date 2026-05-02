@@ -144,7 +144,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
         
-        // 🚀 強制補救：若沒有目標接點，一律預設為 left_in，防止連線插在節點正中間
         edgeObj.targetHandle = data.targetHandle || 'left_in';
 
         if (data.arrowDirection && data.arrowDirection !== 'none') {
@@ -285,10 +284,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           const sNode = currentNodesMap.get(e.source);
           if (!sNode) continue;
 
-          // 🚀 幽靈死線終結者：如果節點明明有按鈕選項，但連線卻沒有綁定在任何按鈕上(e.g., default_out)，代表這是一條無效舊線
           const opts = sNode.data?.options || sNode.data?.buttons || [];
           if (opts.length > 0 && (!e.sourceHandle || !e.sourceHandle.startsWith('opt_'))) {
-              // 抓到幽靈線，直接從 Firebase 裡物理刪除！
               deleteDoc(doc(db, "flowEdges", e.id)).catch(() => {});
               continue; 
           }
@@ -296,7 +293,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           safeEdgesToPublish.push(sanitize({
               id: String(e.id), source: String(e.source), target: String(e.target),
               sourceHandle: e.sourceHandle || undefined,
-              // 強制補救目標接點
               targetHandle: e.targetHandle || 'left_in',
               type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
               style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
@@ -381,8 +377,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
-        // 🚀 雙擊連線直接物理刪除快捷鍵，方便快速清理
-        onEdgeDoubleClick={useCallback(async (_, e) => {
+        onEdgeDoubleClick={useCallback(async (_: any, e: Edge) => {
             if (window.confirm('確定要刪除這條連線嗎？')) {
                 await deleteDoc(doc(db, "flowEdges", e.id));
             }
