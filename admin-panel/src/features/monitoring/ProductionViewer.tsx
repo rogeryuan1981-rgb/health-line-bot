@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
   Background, BackgroundVariant, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow, Controls
-} from 'reactflow'; 
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -91,7 +91,6 @@ function ProductionCanvas() {
       if (snap.exists()) {
         const raw = snap.data();
         
-        // 🚀 關鍵防禦：篩選出正式機設定中「真的活著」的節點 ID
         const validIds = new Set((raw.nodes || []).filter(Boolean).map((n: any) => n.id));
         
         const safeNodes = (raw.nodes || []).filter(Boolean).map((n: any) => {
@@ -103,7 +102,6 @@ function ProductionCanvas() {
             style: n.style || {} 
           };
           
-          // 🚀 關鍵防禦：過濾掉已經刪除的 parentNode
           if (n.parentNode && validIds.has(n.parentNode)) {
               base.parentNode = n.parentNode;
           }
