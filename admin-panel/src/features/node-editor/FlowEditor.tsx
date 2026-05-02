@@ -255,10 +255,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
-      const flowObject = reactFlowInstance.toObject();
       const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj));
+      
+      // 直接拿畫面上真實渲染的節點與連線發布，不再使用隱藏或過濾邏輯
+      const currentNodes = reactFlowInstance.getNodes();
+      const currentEdges = reactFlowInstance.getEdges();
 
-      const nodesToPublish = flowObject.nodes.map(n => sanitize({
+      const nodesToPublish = currentNodes.map(n => sanitize({
         id: String(n.id),
         position: n.position || { x: 0, y: 0 }, 
         type: String(n.type || 'custom'),
@@ -275,24 +278,23 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           return 0;
       });
 
-      // 核心修正：不取 flowObject.edges (暫存狀態)，而是直接讀取元件真實狀態 edges (確保與 Firebase 同步)
-      const edgesToPublish = edges.map(e => sanitize({
+      const edgesToPublish = currentEdges.map(e => sanitize({
         id: String(e.id), source: String(e.source), target: String(e.target),
-        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+        sourceHandle: e.sourceHandle || undefined,
+        targetHandle: e.targetHandle || undefined,
         type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
         style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
         zIndex: e.zIndex 
       }));
 
-      const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
-      const cleanEdges = JSON.parse(JSON.stringify(edgesToPublish));
-      const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
+      const flowObject = reactFlowInstance.toObject();
+      const cleanViewport = sanitize(flowObject.viewport || { x: 0, y: 0, zoom: 1 });
 
       await setDoc(doc(db, "botConfig", "production"), { 
-          nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
+          nodes: nodesToPublish, edges: edgesToPublish, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！正式機畫面已同步。");
+      alert("🚀 發布成功！正式機畫面已完全同步。");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
