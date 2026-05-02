@@ -31,8 +31,8 @@ export const getNodeStyle = (type: string = '', isStart: boolean) => {
 
 const CustomNode = ({ data, isConnectable }: any) => {
   let options = data.options || data.buttons || [];
-  if (data.messageType === 'carousel' && Array.isArray(data.carouselCards)) {
-      options = data.carouselCards.flatMap((c: any) => c.buttons || []);
+  if (data.messageType === 'carousel') {
+      options = (data.cards || []).flatMap((c: any) => c.buttons || []);
   }
   const isStart = data.nodeName === '預設回覆';
 
@@ -133,8 +133,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
                       isValidHandle = (e.sourceHandle === 'business' || e.sourceHandle === 'off-hours');
                   } else {
                       let opts = sNode.options || sNode.buttons || [];
-                      if (sNode.messageType === 'carousel' && Array.isArray(sNode.carouselCards)) {
-                          opts = sNode.carouselCards.flatMap((c: any) => c.buttons || []);
+                      if (sNode.messageType === 'carousel') {
+                          opts = (sNode.cards || []).flatMap((c: any) => c.buttons || []);
                       }
 
                       if (opts.length > 0) {
@@ -372,8 +372,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           if (!sNode) continue;
 
           let opts = sNode.data?.options || sNode.data?.buttons || [];
-          if (sNode.data?.messageType === 'carousel' && Array.isArray(sNode.data?.carouselCards)) {
-              opts = sNode.data.carouselCards.flatMap((c: any) => c.buttons || []);
+          if (sNode.data?.messageType === 'carousel') {
+              opts = (sNode.data.cards || []).flatMap((c: any) => c.buttons || []);
           }
 
           if (opts.length > 0 && (!e.sourceHandle || !e.sourceHandle.startsWith('opt_'))) {
