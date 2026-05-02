@@ -141,10 +141,9 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' },
             zIndex: 100,
             interactionWidth: 25,
-            data: data // 🚀 保留原始 data，這樣 activePath 變化時才能還原顏色
+            data: data // 保留原始屬性
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
-        
         edgeObj.targetHandle = data.targetHandle || 'left_in';
 
         if (data.arrowDirection && data.arrowDirection !== 'none') {
@@ -159,36 +158,37 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
-  // 🚀 完整還原：處理模擬器的「路徑強調」（節點發光 + 連線發亮流動）
   useEffect(() => {
-    setNodes(nds => nds.map(n => {
-        const isCurrent = activePath?.nodes?.length ? n.id === activePath.nodes[activePath.nodes.length - 1] : false;
-        const isVisited = activePath?.nodes?.includes(n.id) && !isCurrent;
-        const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
-        if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
-        if (isVisited) return { ...n, className: `${clean} node-visited` };
-        return { ...n, className: clean };
-    }));
+    if (activePath && activePath.nodes && activePath.edges) {
+        setNodes(nds => nds.map(n => {
+            const isCurrent = activePath.nodes?.length ? n.id === activePath.nodes[activePath.nodes.length - 1] : false;
+            const isVisited = activePath.nodes?.includes(n.id) && !isCurrent;
+            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            return { ...n, className: clean };
+        }));
 
-    setEdges(eds => eds.map(e => {
-        const isVisited = activePath?.edges?.includes(e.id) || false;
-        const defaultColor = e.data?.color || '#deff9a';
-        const defaultWidth = Number(e.data?.strokeWidth) || 2;
-        const defaultDashed = e.data?.dashed !== false;
-        
-        return {
-            ...e,
-            animated: isVisited ? true : defaultDashed,
-            style: {
-                ...e.style,
-                stroke: isVisited ? '#38bdf8' : defaultColor, // 高亮亮藍色
-                strokeWidth: isVisited ? 4 : defaultWidth,
-                filter: isVisited ? 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' : 'none',
-                strokeDasharray: (!isVisited && defaultDashed) ? '5 5' : 'none'
-            },
-            zIndex: isVisited ? 1000 : 100
-        };
-    }));
+        setEdges(eds => eds.map(e => {
+            const isVisited = activePath.edges?.includes(e.id) || false;
+            const defaultColor = e.data?.color || '#deff9a';
+            const defaultWidth = Number(e.data?.strokeWidth) || 2;
+            const defaultDashed = e.data?.dashed !== false;
+            
+            return {
+                ...e,
+                animated: isVisited ? true : defaultDashed,
+                style: {
+                    ...e.style,
+                    stroke: isVisited ? '#38bdf8' : defaultColor,
+                    strokeWidth: isVisited ? 4 : defaultWidth,
+                    filter: isVisited ? 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' : 'none',
+                    strokeDasharray: (!isVisited && defaultDashed) ? '5 5' : 'none'
+                },
+                zIndex: isVisited ? 1000 : 100
+            };
+        }));
+    }
   }, [activePath]);
 
   const handleNodesChange = useCallback((changes: any) => {
@@ -219,25 +219,16 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
               const gW = g.width || (g.style?.width as number) || 400;
               const gH = g.height || (g.style?.height as number) || 300;
               
-              return nAbs && gAbs && 
-                     nAbs.x >= gAbs.x && 
-                     nAbs.x <= gAbs.x + gW &&
-                     nAbs.y >= gAbs.y && 
-                     nAbs.y <= gAbs.y + gH;
+              return nAbs && gAbs && nAbs.x >= gAbs.x && nAbs.x <= gAbs.x + gW && nAbs.y >= gAbs.y && nAbs.y <= gAbs.y + gH;
           });
 
           if (targetGroup) {
               const gAbs = getAbs(targetGroup);
               p.parentNode = targetGroup.id;
-              p.position = {
-                  x: nAbs.x - gAbs.x,
-                  y: nAbs.y - gAbs.y
-              };
+              p.position = { x: nAbs.x - gAbs.x, y: nAbs.y - gAbs.y };
           } else {
               p.parentNode = null; 
-              if (n.parentNode && nAbs) {
-                  p.position = nAbs; 
-              }
+              if (n.parentNode && nAbs) p.position = nAbs; 
           }
       }
       await updateDoc(doc(db, "flowRules", n.id), p);
@@ -316,7 +307,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
               targetHandle: e.targetHandle || 'left_in',
               type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
               style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
-              zIndex: e.zIndex 
+              zIndex: e.zIndex,
+              data: e.data || {} // 🚀 夾帶原始設定，確保模擬器能還原連線樣式
           }));
       }
 
