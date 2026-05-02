@@ -18,7 +18,6 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 視覺修復：CAROUSEL 給予專屬紫色，FLEX 維持橘色
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -30,7 +29,6 @@ const getNodeStyle = (type: string = '', isStart: boolean) => {
 };
 
 const CustomNodeProd = ({ data }: any) => {
-  // 🚀 邏輯修復：監測畫面也要能正確顯示輪播的分支按鈕
   let options = data?.options || data?.buttons || [];
   if (data?.messageType === 'carousel' && Array.isArray(data?.carouselCards)) {
       options = data.carouselCards.flatMap((c: any) => c.buttons || []);
@@ -136,7 +134,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         
         setEdges(safeEdges);
 
-        // 🚀 瞬間定位修復：無運鏡延遲
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setViewport({ x, y, zoom });
@@ -147,7 +144,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
     return () => unsub();
   }, [setViewport]);
 
-  // 🚀 模擬器路徑強調：完美還原藍色發光流動特效
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
         setNodes(nds => nds.map(n => {
@@ -207,8 +203,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
           </ReactFlow>
         </div>
         {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative">
-          {/* 🚀 面板修復：加回 sourceCollection，確保監測畫面讀取正確的輪播資料 */}
-          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
+          {/* 🚀 物理修復：拔除毒藥參數 sourceCollection，讓 NodeEditPanel 正常讀取資料 */}
+          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} />
         </div>}
       </div>
     </div>
