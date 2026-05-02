@@ -10,7 +10,7 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 加入明確的 CustomEdgeData 型別
+// 🚀 加入明確的 CustomEdgeData 型別，讓 TypeScript 認得 color, dashed 等自訂屬性
 interface CustomEdgeData {
   color?: string;
   strokeWidth?: number;
@@ -18,16 +18,9 @@ interface CustomEdgeData {
   [key: string]: any;
 }
 
-// 擴充原生的 Edge 型別
-type AppEdge = Edge<CustomEdgeData>;
-
+// 🚀 將多行反引號改為單行雙引號，徹底杜絕複製貼上引發的 TS1160 (Unterminated template literal) 錯誤
 const CustomStyles = () => (
-  <style dangerouslySetInnerHTML={{__html: `
-    @keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } }
-    .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; }
-    .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; }
-    .react-flow__handle { pointer-events: none !important; cursor: default !important; }
-  `}} />
+  <style dangerouslySetInnerHTML={{ __html: "@keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } } .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; } .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; } .react-flow__handle { pointer-events: none !important; cursor: default !important; }" }} />
 );
 
 const getNodeStyle = (type: string = '', isStart: boolean) => {
@@ -98,9 +91,9 @@ const TimeRouterNodeProd = ({ data }: any) => (
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  // 🚀 核心修復：拔除陣列符號 []，傳入正確的元素型別
+  // 🚀 使用 React Flow 內建泛型，徹底符合 TS 規範
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
@@ -118,7 +111,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             id: n.id,
             position: n.position,
             type: n.type,
-            data: JSON.parse(JSON.stringify(n.data || {})),
+            data: JSON.parse(JSON.stringify(n.data || {})), // 強制深拷貝觸發畫面更新
             style: n.style || {} 
           };
           
@@ -139,7 +132,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         setNodes(safeNodes);
         
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
-            const cleanEdge: AppEdge = { ...e };
+            const cleanEdge: Edge = { ...e }; // 符合預設 Edge 規範
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
@@ -173,9 +166,11 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         setEdges(eds => eds.map(e => {
             const isVisited = activePath.edges?.includes(e.id) || false;
             
-            const defaultColor = e.data?.color || '#deff9a';
-            const defaultWidth = Number(e.data?.strokeWidth) || 2;
-            const defaultDashed = e.data?.dashed !== false;
+            // 🚀 精準轉型，解決 TS 抱怨
+            const customData = (e.data || {}) as CustomEdgeData;
+            const defaultColor = customData.color || '#deff9a';
+            const defaultWidth = Number(customData.strokeWidth) || 2;
+            const defaultDashed = customData.dashed !== false;
             
             return {
                 ...e,
@@ -212,7 +207,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesConnectable={false}
             elementsSelectable={true} 
             onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange as any} 
+            onEdgesChange={onEdgesChange} // 🚀 完美合規，不需要 as any 了
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
@@ -231,4 +226,4 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
 export default function ProductionViewer({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   return <div className="w-full h-full bg-[#020617]"><ReactFlowProvider><ProductionCanvas activePath={activePath} /></ReactFlowProvider></div>;
 }
-```</Node[]></AppEdge[]>
+```</Edge>
