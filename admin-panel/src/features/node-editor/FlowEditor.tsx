@@ -5,11 +5,11 @@ import ReactFlow, {
   NodeResizer, useReactFlow, Position, Handle, ConnectionMode, Connection, MarkerType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, updateDoc, deleteDoc, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 import EdgeEditPanel from '../message-form/EdgeEditPanel';
-import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket } from 'lucide-react';
+import { Plus, Flag, Magnet, Save, History, Download, X, BoxSelect, Clock, Globe, Rocket, CalendarClock } from 'lucide-react';
 
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -96,9 +96,16 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshots, setShowSnapshots] = useState(false);
+  
+  // 儲存狀態
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  
+  // 🚀 發布與預約狀態
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishType, setPublishType] = useState<'now' | 'schedule'>('now');
+  const [scheduleTime, setScheduleTime] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
   
   const reactFlowInstance = useReactFlow(); 
@@ -340,8 +347,13 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       }
   }, []);
 
+  // 🚀 發布邏輯升級：支援時間標記
   const executePublish = async () => {
-    if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
+    if (publishType === 'schedule' && !scheduleTime) {
+      alert("⚠️ 請選擇預約發布的時間！");
+      return;
+    }
+
     setIsPublishing(true);
     try {
       const flowObject = reactFlowInstance.toObject();
@@ -396,17 +408,40 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       const cleanEdges = JSON.parse(JSON.stringify(safeEdgesToPublish));
       const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
 
-      await setDoc(doc(db, "botConfig", "production"), { 
-          nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
-          publishedAt: serverTimestamp(), publisher: "Roger" 
-      });
-      alert("🚀 發布成功！正式機畫面已同步更新！");
-    } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
+      const payload: any = { 
+          nodes: cleanNodes, 
+          edges: cleanEdges, 
+          viewport: cleanViewport, 
+          publisher: "Roger",
+          updatedAt: serverTimestamp()
+      };
+
+      if (publishType === 'schedule') {
+          const targetTime = new Date(scheduleTime);
+          payload.scheduledAt = Timestamp.fromDate(targetTime);
+          // 將預約的腳本存入 scheduled 集合，讓後端排程去抓取覆蓋
+          await setDoc(doc(db, "botConfig", "scheduled"), payload);
+          alert(`🚀 預約成功！配置將於 ${scheduleTime.replace('T', ' ')} 自動發布至正式機。`);
+      } else {
+          payload.publishedAt = serverTimestamp();
+          // 立即發布直接覆寫 production
+          await setDoc(doc(db, "botConfig", "production"), payload);
+          alert("🚀 發布成功！正式機畫面已同步更新！");
+      }
+      
+      setShowPublishModal(false);
+    } catch (e: any) { 
+      alert(`發布失敗：${e.message}`); 
+    } finally { 
+      setIsPublishing(false); 
+    }
   };
 
   return (
     <>
       <CustomStyles />
+      
+      {/* 儲存草稿 Modal */}
       {showSaveModal && (
         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl">
@@ -428,8 +463,57 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           </div>
         </div>
       )}
+
+      {/* 🚀 發布與預約 Modal */}
+      {showPublishModal && (
+        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-96 flex flex-col gap-5 shadow-2xl animate-in zoom-in-95">
+            <div>
+              <h3 className="font-black text-rose-400 text-lg flex items-center gap-2"><Rocket size={20} /> 發布控制台</h3>
+              <p className="text-[10px] text-slate-400 mt-1">請選擇配置同步至正式機的時間點</p>
+            </div>
+            
+            <div className="flex gap-2 bg-slate-800 p-1.5 rounded-xl border border-white/5">
+              <button onClick={() => setPublishType('now')} className={`flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition-all ${publishType === 'now' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+                <Rocket size={14}/> 立即發布
+              </button>
+              <button onClick={() => setPublishType('schedule')} className={`flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-bold rounded-lg transition-all ${publishType === 'schedule' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}>
+                <CalendarClock size={14}/> 預約時間
+              </button>
+            </div>
+
+            {publishType === 'schedule' && (
+              <div className="space-y-2 p-4 bg-indigo-950/30 rounded-xl border border-indigo-500/30 animate-in fade-in">
+                <label className="text-xs font-bold text-indigo-300">選擇生效時間：</label>
+                <input 
+                  type="datetime-local" 
+                  value={scheduleTime} 
+                  onChange={e => setScheduleTime(e.target.value)} 
+                  className="w-full bg-slate-900 text-white rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 ring-indigo-400 [color-scheme:dark]" 
+                />
+              </div>
+            )}
+
+            {publishType === 'now' && (
+              <div className="p-4 bg-rose-950/30 rounded-xl border border-rose-500/30">
+                <p className="text-xs text-rose-300 leading-relaxed font-bold">⚠️ 警告：這將立刻覆蓋目前的正式機腳本，且用戶會立刻感受到變更。</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setShowPublishModal(false)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 transition-colors rounded-xl text-xs font-bold text-slate-300">取消</button>
+              <button onClick={executePublish} disabled={isPublishing} className={`flex-1 py-3 font-black rounded-xl text-xs transition-transform active:scale-95 ${publishType === 'schedule' ? 'bg-indigo-500 text-white hover:bg-indigo-400' : 'bg-rose-600 text-white hover:bg-rose-500'}`}>
+                {isPublishing ? "處理中..." : (publishType === 'schedule' ? "確認預約" : "確認發布")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute left-8 top-8 z-10 flex flex-col gap-3">
-          <button onClick={executePublish} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl font-black flex gap-2 hover:scale-105 active:scale-95 transition-all shadow-2xl border-2 border-rose-400"><Rocket size={20} /> {isPublishing ? '發布中' : '立即發布正式機'}</button>
+          {/* 🚀 改為開啟 Modal */}
+          <button onClick={() => setShowPublishModal(true)} disabled={isPublishing} className="bg-rose-600 text-white px-6 py-3 rounded-2xl font-black flex gap-2 hover:scale-105 active:scale-95 transition-all shadow-2xl border-2 border-rose-400"><Rocket size={20} /> 控制發布</button>
+          
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新節點", messageType: "text", position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-[#deff9a] text-black px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Plus size={20} /> ADD NODE</button>
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "時間分流", messageType: "time_router", config: { startTime: "09:00", endTime: "18:00" }, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black flex gap-2 shadow-xl hover:scale-105 transition-all"><Clock size={20} /> TIME ROUTER</button>
           <button onClick={() => addDoc(collection(db, "flowRules"), { nodeName: "新區塊", messageType: "group_box", width: 400, height: 300, position: { x: 100, y: 100 }, updatedAt: serverTimestamp() })} className="bg-white/10 text-white px-6 py-3 rounded-2xl font-black flex gap-2 border border-white/20 hover:bg-white/20 transition-all"><BoxSelect size={20} /> ADD GROUP</button>
@@ -438,6 +522,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           <button onClick={() => { setSaveName(`版本_${new Date().toISOString().slice(0, 10)}`); setShowSaveModal(true); }} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-blue-500 transition-all"><Save size={14}/> 儲存草稿版本</button>
           <button onClick={() => setShowSnapshots(!showSnapshots)} className="bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-bold flex gap-2 hover:bg-slate-700 transition-all"><History size={14}/> 歷史紀錄</button>
       </div>
+      
       {showSnapshots && (
         <div className="absolute left-8 top-[480px] z-50 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
           <div className="p-3 bg-slate-800 border-b flex justify-between items-center"><span className="text-[10px] font-black text-slate-400">歷史紀錄</span><button onClick={() => setShowSnapshots(false)}><X size={14}/></button></div>
