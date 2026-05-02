@@ -26,33 +26,48 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
   const [libFilter, setLibFilter] = useState<'all' | 'image' | 'video' | 'file'>('all');
   const [showPreview, setShowPreview] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     if (!nodeId) return;
-    const fetch = async () => {
-      let data: any = null;
-      
-      if (sourceCollection === "botConfig/production") {
-          const prodSnap = await getDoc(doc(db, "botConfig", "production"));
-          if (prodSnap.exists()) {
-              const foundNode = prodSnap.data().nodes.find((n: any) => n.id === nodeId);
-              data = foundNode ? foundNode.data : null; 
-          }
-      } else {
-          const snap = await getDoc(doc(db, sourceCollection, nodeId));
-          if (snap.exists()) data = snap.data();
-      }
-
-      if (data) {
-          if (data.messageType === 'time_router' && !data.config) {
-              data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
-          }
-          data.isGlobal = data.isGlobal || false;
-          setNodeData(data);
-      }
+    let unsub: any = null;
+    
+    // 預先載入資源庫
+    const fetchLib = async () => {
       const libSnap = await getDocs(collection(db, "resources"));
       setLibrary(libSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     };
-    fetch();
+    fetchLib();
+
+    // 🚀 將單次讀取 (getDoc) 改為即時監聽 (onSnapshot)，預約發布一到面板立刻變形
+    if (sourceCollection === "botConfig/production") {
+        unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
+            if (snap.exists()) {
+                const foundNode = snap.data().nodes.find((n: any) => n.id === nodeId);
+                let data = foundNode ? foundNode.data : null;
+                if (data) {
+                    if (data.messageType === 'time_router' && !data.config) {
+                        data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
+                    }
+                    data.isGlobal = data.isGlobal || false;
+                    setNodeData(data);
+                }
+            }
+        });
+    } else {
+        unsub = onSnapshot(doc(db, sourceCollection, nodeId), (snap) => {
+            if (snap.exists()) {
+                let data = snap.data();
+                if (data) {
+                    if (data.messageType === 'time_router' && !data.config) {
+                        data.config = { startTime: "09:00", endTime: "18:00", workDays: [1,2,3,4,5], forceOffHours: false };
+                    }
+                    data.isGlobal = data.isGlobal || false;
+                    setNodeData(data);
+                }
+            }
+        });
+    }
+
+    return () => { if (unsub) unsub(); };
   }, [nodeId, sourceCollection]);
 
   const handleSave = async () => {
