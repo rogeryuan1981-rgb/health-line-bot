@@ -103,7 +103,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       const validNodeIds = new Set(snap.docs.map(d => d.id));
 
-      setNodes(snap.docs.map(d => {
+      let parsedNodes = snap.docs.map(d => {
         const data = d.data();
         let base: any = { id: d.id, position: data.position || { x: 100, y: 100 } };
 
@@ -123,16 +123,46 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         if (data.parentNode && validNodeIds.has(data.parentNode)) {
             base.parentNode = data.parentNode;
         }
-
         return base;
-      }));
+      });
+
+      parsedNodes.sort((a, b) => (a.type === 'group' ? -1 : 1));
+      setNodes(parsedNodes);
     });
     
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
-      setEdges(snap.docs.map(d => {
-        const data = d.data();
+      // 🚀 清理行動 1：自動去重邏輯，揪出並刪除重疊的幽靈連線
+      const uniqueEdges = new Map();
+      const duplicateIds: string[] = [];
+
+      snap.docs.forEach(d => {
+          const data = d.data();
+          const key = `${data.source}_${data.sourceHandle || 'none'}_${data.target}_${data.targetHandle || 'none'}`;
+          
+          if (uniqueEdges.has(key)) {
+              const existing = uniqueEdges.get(key);
+              const existingTime = existing.createdAt?.toMillis?.() || 0;
+              const newTime = data.createdAt?.toMillis?.() || 0;
+              
+              const isNewer = (newTime === 0 && existingTime !== 0) || (newTime > existingTime);
+
+              if (isNewer) {
+                  duplicateIds.push(existing.id);
+                  uniqueEdges.set(key, { id: d.id, ...data });
+              } else {
+                  duplicateIds.push(d.id);
+              }
+          } else {
+              uniqueEdges.set(key, { id: d.id, ...data });
+          }
+      });
+
+      // 在背景無聲無息地把多餘的紅線/幽靈線從資料庫裡砍掉
+      duplicateIds.forEach(id => deleteDoc(doc(db, "flowEdges", id)).catch(() => {}));
+
+      setEdges(Array.from(uniqueEdges.values()).map(data => {
         const edgeObj: any = {
-            id: d.id, source: data.source, target: data.target,
+            id: data.id, source: data.source, target: data.target,
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }
         };
@@ -145,6 +175,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         return edgeObj;
       }));
     });
+    
     const unsubSnaps = onSnapshot(query(collection(db, "flowSnapshots"), orderBy("createdAt", "desc")), (snap) => setSnapshots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
@@ -214,18 +245,34 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       await updateDoc(doc(db, "flowRules", n.id), p);
   }, [reactFlowInstance]);
 
+  // 🚀 清理行動 2：連帶刪除機制，刪除節點時，徹底把綁在它身上的連線從資料庫抹除
   const onNodesDelete = useCallback(async (dns: Node[]) => {
       const groupIds = new Set(dns.filter(d => d.type === 'group').map(d => d.id));
-      for(const n of dns) await deleteDoc(doc(db, "flowRules", n.id));
+      const deletedNodeIds = new Set(dns.map(d => d.id));
+      
+      const deletePromises = dns.map(n => deleteDoc(doc(db, "flowRules", n.id)));
+      await Promise.all(deletePromises);
+      
+      const edgesSnap = await getDocs(collection(db, "flowEdges"));
+      const edgePromises: any[] = [];
+      edgesSnap.forEach(d => {
+          const data = d.data();
+          if (deletedNodeIds.has(data.source) || deletedNodeIds.has(data.target)) {
+              edgePromises.push(deleteDoc(doc(db, "flowEdges", d.id)));
+          }
+      });
+      await Promise.all(edgePromises);
       
       if (groupIds.size > 0) {
           const snap = await getDocs(collection(db, "flowRules"));
+          const updatePromises: any[] = [];
           for (const docSnap of snap.docs) {
               const data = docSnap.data();
               if (data.parentNode && groupIds.has(data.parentNode)) {
-                  await updateDoc(doc(db, "flowRules", docSnap.id), { parentNode: null });
+                  updatePromises.push(updateDoc(doc(db, "flowRules", docSnap.id), { parentNode: null }));
               }
           }
+          await Promise.all(updatePromises);
       }
   }, []);
 
@@ -247,6 +294,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: n.parentNode
       }));
 
+      nodesToPublish.sort((a: any, b: any) => (a.type === 'group' ? -1 : 1));
+
       const edgesToPublish = flowObject.edges.map(e => ({
         id: String(e.id), source: String(e.source), target: String(e.target),
         sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
@@ -262,7 +311,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！");
+      alert("🚀 發布成功！幽靈連線已從監測畫面中被清除了！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
