@@ -140,7 +140,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' },
             zIndex: 100,
-            interactionWidth: 25 
+            interactionWidth: 25,
+            data: data // 🚀 保留原始 data，這樣 activePath 變化時才能還原顏色
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
         
@@ -158,17 +159,36 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
+  // 🚀 完整還原：處理模擬器的「路徑強調」（節點發光 + 連線發亮流動）
   useEffect(() => {
-    if (activePath && activePath.nodes.length > 0) {
-        setNodes(nds => nds.map(n => {
-            const isCurrent = n.id === activePath.nodes[activePath.nodes.length - 1];
-            const isVisited = activePath.nodes.includes(n.id) && !isCurrent;
-            const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
-            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
-            if (isVisited) return { ...n, className: `${clean} node-visited` };
-            return { ...n, className: clean };
-        }));
-    }
+    setNodes(nds => nds.map(n => {
+        const isCurrent = activePath?.nodes?.length ? n.id === activePath.nodes[activePath.nodes.length - 1] : false;
+        const isVisited = activePath?.nodes?.includes(n.id) && !isCurrent;
+        const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
+        if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
+        if (isVisited) return { ...n, className: `${clean} node-visited` };
+        return { ...n, className: clean };
+    }));
+
+    setEdges(eds => eds.map(e => {
+        const isVisited = activePath?.edges?.includes(e.id) || false;
+        const defaultColor = e.data?.color || '#deff9a';
+        const defaultWidth = Number(e.data?.strokeWidth) || 2;
+        const defaultDashed = e.data?.dashed !== false;
+        
+        return {
+            ...e,
+            animated: isVisited ? true : defaultDashed,
+            style: {
+                ...e.style,
+                stroke: isVisited ? '#38bdf8' : defaultColor, // 高亮亮藍色
+                strokeWidth: isVisited ? 4 : defaultWidth,
+                filter: isVisited ? 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' : 'none',
+                strokeDasharray: (!isVisited && defaultDashed) ? '5 5' : 'none'
+            },
+            zIndex: isVisited ? 1000 : 100
+        };
+    }));
   }, [activePath]);
 
   const handleNodesChange = useCallback((changes: any) => {
@@ -308,7 +328,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！幽靈連線已從資料庫物理抹除，正式機畫面已同步更新！");
+      alert("🚀 發布成功！正式機畫面已同步更新！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
