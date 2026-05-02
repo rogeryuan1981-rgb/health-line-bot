@@ -123,6 +123,10 @@ function ProductionCanvas() {
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
+            
+            // 🚀 強制補救：若正式機檔案中的連線沒有目標接點，一律預設為 left_in，解決全擠到中間的問題
+            if (!cleanEdge.targetHandle) cleanEdge.targetHandle = 'left_in';
+            
             return cleanEdge;
         });
         
