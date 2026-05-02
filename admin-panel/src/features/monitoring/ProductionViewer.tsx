@@ -124,7 +124,6 @@ function ProductionCanvas() {
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
             
-            // 🚀 強制補救：若正式機檔案中的連線沒有目標接點，一律預設為 left_in，解決全擠到中間的問題
             if (!cleanEdge.targetHandle) cleanEdge.targetHandle = 'left_in';
             
             return cleanEdge;
@@ -132,9 +131,10 @@ function ProductionCanvas() {
         
         setEdges(safeEdges);
 
+        // 🚀 關鍵修復：直接設定 viewport，不再使用 setTimeout 和 duration 動畫
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
-          setTimeout(() => setViewport({ x, y, zoom }, { duration: 1000 }), 500);
+          setViewport({ x, y, zoom });
           initRef.current = true;
         }
       }
