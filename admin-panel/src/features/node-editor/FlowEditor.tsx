@@ -19,18 +19,25 @@ const CustomStyles = () => (
   `}} />
 );
 
+// 🚀 視覺修復：徹底分離 FLEX 與 CAROUSEL 的顏色，給輪播卡片專屬的紫色
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (t === 'flex') return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (t === 'carousel') return 'bg-fuchsia-900/80 border-fuchsia-500 text-fuchsia-100 shadow-fuchsia-900/50';
   if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
   if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
   return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNode = ({ data, isConnectable }: any) => {
-  const options = data.options || data.buttons || [];
+  // 🚀 邏輯修復：正確提取輪播卡片內部的按鈕，讓節點能長出分支接點
+  let options = data.options || data.buttons || [];
+  if (data.messageType === 'carousel' && Array.isArray(data.carouselCards)) {
+      options = data.carouselCards.flatMap((c: any) => c.buttons || []);
+  }
   const isStart = data.nodeName === '預設回覆';
+
   return (
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data.messageType, isStart)}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={isConnectable} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 hover:scale-150 transition-transform !left-[-10px]" />
@@ -46,7 +53,7 @@ const CustomNode = ({ data, isConnectable }: any) => {
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
-            {opt.label}
+            {opt.label || '選項'}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={isConnectable} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 hover:scale-150 transition-transform !right-[-10px]" />
           </div>
         ))}
@@ -99,6 +106,79 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
+  // 自動清理不合法連線 (確保資料庫衛生)
+  useEffect(() => {
+      const healDatabase = async () => {
+          try {
+              const [nSnap, eSnap] = await Promise.all([
+                  getDocs(collection(db, "flowRules")),
+                  getDocs(collection(db, "flowEdges"))
+              ]);
+              const validNodes = new Map();
+              nSnap.docs.forEach(d => validNodes.set(d.id, d.data()));
+
+              const edgesData = eSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+              edgesData.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+              const occupiedSockets = new Set<string>();
+              const trashIds = new Set<string>();
+
+              for (const e of edgesData) {
+                  if (!validNodes.has(e.source) || !validNodes.has(e.target)) {
+                      trashIds.add(e.id);
+                      continue;
+                  }
+
+                  const sNode = validNodes.get(e.source);
+                  let isValidHandle = true;
+
+                  if (sNode.messageType === 'time_router') {
+                      isValidHandle = (e.sourceHandle === 'business' || e.sourceHandle === 'off-hours');
+                  } else {
+                      // 🚀 邏輯修復：清理腳本也要認得輪播的按鈕，才不會誤砍連線
+                      let opts = sNode.options || sNode.buttons || [];
+                      if (sNode.messageType === 'carousel' && Array.isArray(sNode.carouselCards)) {
+                          opts = sNode.carouselCards.flatMap((c: any) => c.buttons || []);
+                      }
+
+                      if (opts.length > 0) {
+                          if (!e.sourceHandle || !e.sourceHandle.startsWith('opt_')) {
+                              isValidHandle = false;
+                          } else {
+                              const idx = parseInt(e.sourceHandle.replace('opt_', ''), 10);
+                              if (isNaN(idx) || idx < 0 || idx >= opts.length) isValidHandle = false;
+                          }
+                      } else {
+                          if (e.sourceHandle && e.sourceHandle.startsWith('opt_')) {
+                              isValidHandle = false;
+                          }
+                      }
+                  }
+
+                  if (!isValidHandle) {
+                      trashIds.add(e.id);
+                      continue;
+                  }
+
+                  const socketKey = `${e.source}_${e.sourceHandle || 'default'}`;
+                  if (occupiedSockets.has(socketKey)) {
+                      trashIds.add(e.id);
+                      continue;
+                  }
+                  
+                  occupiedSockets.add(socketKey);
+              }
+
+              const deletePromises = Array.from(trashIds).map(id => deleteDoc(doc(db, "flowEdges", id)));
+              await Promise.all(deletePromises);
+          } catch (err) {
+              console.error("DB Auto-heal failed", err);
+          }
+      };
+
+      healDatabase();
+  }, []);
+
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       let parsedNodes = snap.docs.map(d => {
@@ -141,9 +221,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' },
             zIndex: 100,
             interactionWidth: 25,
-            data: data // 保留原始屬性
+            data: data 
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
+        
         edgeObj.targetHandle = data.targetHandle || 'left_in';
 
         if (data.arrowDirection && data.arrowDirection !== 'none') {
@@ -158,6 +239,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
+  // 路徑強調特效
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
         setNodes(nds => nds.map(n => {
@@ -295,7 +377,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           const sNode = currentNodesMap.get(e.source);
           if (!sNode) continue;
 
-          const opts = sNode.data?.options || sNode.data?.buttons || [];
+          // 🚀 發布過濾邏輯：同步支援輪播卡片的按鈕提取
+          let opts = sNode.data?.options || sNode.data?.buttons || [];
+          if (sNode.data?.messageType === 'carousel' && Array.isArray(sNode.data?.carouselCards)) {
+              opts = sNode.data.carouselCards.flatMap((c: any) => c.buttons || []);
+          }
+
           if (opts.length > 0 && (!e.sourceHandle || !e.sourceHandle.startsWith('opt_'))) {
               deleteDoc(doc(db, "flowEdges", e.id)).catch(() => {});
               continue; 
@@ -308,7 +395,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
               type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
               style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
               zIndex: e.zIndex,
-              data: e.data || {} // 🚀 夾帶原始設定，確保模擬器能還原連線樣式
+              data: e.data || {} 
           }));
       }
 
