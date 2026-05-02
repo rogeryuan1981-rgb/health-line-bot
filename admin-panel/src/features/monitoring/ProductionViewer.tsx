@@ -9,7 +9,6 @@ import { db } from "../../firebase";
 import { ShieldCheck, Flag, Clock, Globe } from "lucide-react";
 import NodeEditPanel from "../message-form/NodeEditPanel";
 
-// 🚀 定義自訂連線資料型別
 interface CustomEdgeData {
   color?: string;
   strokeWidth?: number;
@@ -17,7 +16,6 @@ interface CustomEdgeData {
   [key: string]: any;
 }
 
-// 🚀 將所有反引號替換為標準雙引號，徹底杜絕 TS1160 錯誤
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{ __html: "@keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } } .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; } .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; } .react-flow__handle { pointer-events: none !important; cursor: default !important; }" }} />
 );
@@ -89,8 +87,7 @@ const TimeRouterNodeProd = ({ data }: any) => (
 
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
-function function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  // 🚀 換回原生的 useState，不讓 React Flow 攔截狀態
+function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   
@@ -110,7 +107,6 @@ function function ProductionCanvas({ activePath }: { activePath?: { nodes: strin
             id: n.id,
             position: n.position,
             type: n.type,
-            // 🚀 保留深度拷貝，確保預約發布時能強制觸發畫布更新
             data: JSON.parse(JSON.stringify(n.data || {})), 
             style: n.style || {} 
           };
@@ -204,7 +200,6 @@ function function ProductionCanvas({ activePath }: { activePath?: { nodes: strin
             nodesDraggable={false} 
             nodesConnectable={false}
             elementsSelectable={true} 
-            // 🚀 拔除 onNodesChange 與 onEdgesChange，維持純唯讀
             onNodeClick={(_, n) => n.type !== "group" && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
