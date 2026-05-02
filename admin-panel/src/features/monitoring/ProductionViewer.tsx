@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
   Background, BackgroundVariant, Node, Edge, 
-  ReactFlowProvider, Handle, Position, useReactFlow, Controls
+  ReactFlowProvider, Handle, Position, useReactFlow, Controls,
+  useNodesState, useEdgesState // 🚀 引入 React Flow 原生的狀態管理器
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
@@ -31,7 +32,8 @@ const getNodeStyle = (type: string = '', isStart: boolean) => {
 const CustomNodeProd = ({ data }: any) => {
   let options = data?.options || data?.buttons || [];
   if (data?.messageType === 'carousel') {
-      options = (data.cards || []).flatMap((c: any) => c.buttons || []);
+      const arr = data.cards || data.carouselCards || data.columns || data.items || [];
+      options = arr.flatMap((c: any) => c.buttons || []);
   }
   const isStart = data?.nodeName === '預設回覆';
 
@@ -85,8 +87,10 @@ const TimeRouterNodeProd = ({ data }: any) => (
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
+  // 🚀 核心修復：改用 React Flow 原生管理，確保畫面與資料強制同步
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
+  
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
   const initRef = useRef(false);
@@ -103,7 +107,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             id: n.id,
             position: n.position,
             type: n.type,
-            data: n.data || {},
+            // 🚀 核心修復：強制深拷貝 data，打破 React Flow 淺層比對的快取，保證卡片更新
+            data: JSON.parse(JSON.stringify(n.data || {})),
             style: n.style || {} 
           };
           
@@ -142,7 +147,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
       }
     });
     return () => unsub();
-  }, [setViewport]);
+  }, [setViewport, setNodes, setEdges]);
 
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
@@ -175,7 +180,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             };
         }));
     }
-  }, [activePath]);
+  }, [activePath, setNodes, setEdges]);
 
   return (
     <div className="w-full h-full bg-[#020617] font-sans relative overflow-hidden">
@@ -195,6 +200,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesDraggable={false} 
             nodesConnectable={false}
             elementsSelectable={true} 
+            onNodesChange={onNodesChange} 
+            onEdgesChange={onEdgesChange} 
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
@@ -203,7 +210,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
           </ReactFlow>
         </div>
         {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative">
-          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} />
+          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
         </div>}
       </div>
     </div>
