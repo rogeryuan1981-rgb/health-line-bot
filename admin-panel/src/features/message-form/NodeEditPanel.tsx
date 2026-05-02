@@ -31,12 +31,11 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
     const fetch = async () => {
       let data: any = null;
       
-      // 🚀 核心修復：正確解析正式機 (production) 的深層資料結構
       if (sourceCollection === "botConfig/production") {
           const prodSnap = await getDoc(doc(db, "botConfig", "production"));
           if (prodSnap.exists()) {
               const foundNode = prodSnap.data().nodes.find((n: any) => n.id === nodeId);
-              data = foundNode ? foundNode.data : null; // 這裡少寫了 .data 導致監測畫面變成空白！
+              data = foundNode ? foundNode.data : null; 
           }
       } else {
           const snap = await getDoc(doc(db, sourceCollection, nodeId));
@@ -63,7 +62,13 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
     delete payload.position; 
     await updateDoc(doc(db, "flowRules", nodeId), payload);
 
-    if (nodeData.buttons && nodeData.buttons.length > 0 && nodeData.messageType !== 'time_router') {
+    // 🚀 核心修復：正確提取所有需要綁定連線的按鈕（支援 Flex 與 Carousel）
+    let allButtons = nodeData.buttons || [];
+    if (nodeData.messageType === 'carousel' && Array.isArray(nodeData.carouselCards)) {
+        allButtons = nodeData.carouselCards.flatMap((c: any) => c.buttons || []);
+    }
+
+    if (allButtons.length > 0 && nodeData.messageType !== 'time_router') {
       try {
         const edgesSnap = await getDocs(collection(db, "flowEdges"));
         const allEdges = edgesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -73,7 +78,7 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
           const rulesSnap = await getDocs(collection(db, "flowRules"));
           const allNodes: any[] = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-          for (const [index, btn] of nodeData.buttons.entries()) {
+          for (const [index, btn] of allButtons.entries()) {
             const targetKeyword = btn.target?.trim();
             if (!targetKeyword || targetKeyword.startsWith('http') || targetKeyword.startsWith('tel:')) continue;
             const matchedNodes = allNodes.filter(n => {
@@ -160,7 +165,6 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
       <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col p-6 space-y-6">
           <div className="space-y-6">
               
-              {/* 🚀 核心修復：把被我不小心刪掉的「類別選擇器」完整加回來 */}
               {!isGroup && !isTimeRouter && (
                 <div className="space-y-2 mb-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">訊息類別</label>
@@ -210,7 +214,6 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
                     )}
                     {nodeData.messageType === 'image' && renderMultiImagePicker()}
                     
-                    {/* 🚀 核心修復：被我不小心刪除的 Video (影片) 設定區塊加回來了 */}
                     {nodeData.messageType === 'video' && (
                         <div className="space-y-2">
                             <div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">影片網址</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib==='fVid'?'null':'fVid')} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div>
@@ -219,26 +222,81 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
                         </div>
                     )}
 
-                    {(nodeData.messageType === 'flex' || nodeData.messageType === 'carousel') && (
+                    {/* 🚀 核心修復：單張 FLEX 的編輯介面 */}
+                    {nodeData.messageType === 'flex' && (
                         <div className="space-y-4">
                             <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型</button></div>
                             <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib==='fImg'?'null':'fImg')} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div><input value={nodeData.imageUrl || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" />{activeLib==='fImg' && renderLibraryDropdown((url)=>setNodeData({...nodeData, imageUrl:url}))}</div>
-                            <textarea value={nodeData.textContent || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px]" />
+                            <textarea value={nodeData.textContent || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px]" placeholder="卡片內文" />
+                        </div>
+                    )}
+
+                    {/* 🚀 核心修復：CAROUSEL 專屬的輪播卡片陣列編輯器 */}
+                    {nodeData.messageType === 'carousel' && (
+                        <div className="space-y-4 animate-in fade-in">
+                            <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'md'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='md'?'bg-slate-700 text-white':'text-slate-500'}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: 'sm'})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==='sm'?'bg-slate-700 text-white':'text-slate-500'}`}><Minimize2 size={12}/> 微型</button></div>
+                            
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center text-[10px] font-black text-fuchsia-400 uppercase tracking-widest border-b border-white/5 pb-2">
+                                    <span>輪播卡片陣列 ({(nodeData.carouselCards || []).length}/10)</span>
+                                    {!isReadOnly && <button onClick={() => { if((nodeData.carouselCards?.length || 0) < 10) setNodeData({...nodeData, carouselCards: [...(nodeData.carouselCards || []), {imageUrl: "", title: "", textContent: "", buttons: []}]}) }} className="bg-slate-800 p-1.5 rounded hover:bg-slate-700 transition-colors"><Plus size={14}/></button>}
+                                </div>
+
+                                {(nodeData.carouselCards || []).map((card: any, cIdx: number) => (
+                                    <div key={cIdx} className="bg-slate-800/40 p-4 rounded-xl border border-white/10 space-y-4 relative group">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-widest bg-fuchsia-500/20 px-2 py-1 rounded">第 {cIdx + 1} 張卡片</label>
+                                            {!isReadOnly && <button onClick={() => { if(window.confirm('確定刪除此張卡片？')) { const nc = [...nodeData.carouselCards]; nc.splice(cIdx, 1); setNodeData({...nodeData, carouselCards: nc}); } }} className="text-red-400 hover:bg-red-400/20 p-1.5 rounded transition-colors"><Trash2 size={14}/></button>}
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib===`cImg-${cIdx}`?'null':`cImg-${cIdx}`)} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div>
+                                            <input value={card.imageUrl || ""} disabled={isReadOnly} onChange={e => { const nc = [...nodeData.carouselCards]; nc[cIdx].imageUrl = e.target.value; setNodeData({...nodeData, carouselCards: nc}) }} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" />
+                                            {activeLib===`cImg-${cIdx}` && renderLibraryDropdown((url)=>{ const nc = [...nodeData.carouselCards]; nc[cIdx].imageUrl = url; setNodeData({...nodeData, carouselCards: nc}); })}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">標題與內文</label>
+                                            <input value={card.title || ""} disabled={isReadOnly} onChange={e => { const nc = [...nodeData.carouselCards]; nc[cIdx].title = e.target.value; setNodeData({...nodeData, carouselCards: nc}) }} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs mb-2" placeholder="卡片標題 (選填)" />
+                                            <textarea value={card.textContent || ""} disabled={isReadOnly} onChange={e => { const nc = [...nodeData.carouselCards]; nc[cIdx].textContent = e.target.value; setNodeData({...nodeData, carouselCards: nc}) }} className="w-full bg-slate-900 rounded-xl p-3 text-xs min-h-[60px]" placeholder="卡片內文" />
+                                        </div>
+
+                                        <div className="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-white/5">
+                                            <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                <span>專屬按鈕 ({card.buttons?.length || 0}/3)</span>
+                                                {!isReadOnly && <button onClick={() => { if((card.buttons?.length || 0) < 3) { const nc = [...nodeData.carouselCards]; nc[cIdx].buttons = [...(nc[cIdx].buttons || []), {label: "", target: ""}]; setNodeData({...nodeData, carouselCards: nc}); } }} className="text-[#deff9a] bg-slate-800 p-1 rounded hover:bg-slate-700 transition-colors"><Plus size={12}/></button>}
+                                            </div>
+                                            {card.buttons?.map((btn: any, bIdx: number) => (
+                                                <div key={bIdx} className="flex gap-2 items-center">
+                                                    <input value={btn.label} disabled={isReadOnly} onChange={e => { const nc = [...nodeData.carouselCards]; nc[cIdx].buttons[bIdx].label = e.target.value; setNodeData({...nodeData, carouselCards: nc}) }} className="flex-1 bg-slate-800 rounded-lg p-2 text-xs text-white" placeholder="按鈕文字" />
+                                                    <input value={btn.target} disabled={isReadOnly} onChange={e => { const nc = [...nodeData.carouselCards]; nc[cIdx].buttons[bIdx].target = e.target.value; setNodeData({...nodeData, carouselCards: nc}) }} className="flex-[1.5] bg-slate-800 rounded-lg p-2 text-xs text-white" placeholder="跳轉關鍵字" />
+                                                    {!isReadOnly && <button onClick={() => { const nc = [...nodeData.carouselCards]; nc[cIdx].buttons.splice(bIdx, 1); setNodeData({...nodeData, carouselCards: nc}); }} className="text-red-500 p-1 hover:bg-red-500/10 rounded-full"><Trash2 size={12}/></button>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
               )}
-              <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-[#deff9a]/20">
-                    <div className="flex justify-between items-center text-[10px] font-black text-[#deff9a] uppercase tracking-widest"><div className="flex items-center gap-1"><span>分支按鈕 ({nodeData.buttons?.length || 0}/6)</span><Info size={10} className="text-slate-400 cursor-help"/></div>{!isReadOnly && <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] bg-slate-900/50 p-1.5 rounded"><Plus size={14}/></button>}</div>
-                    {nodeData.buttons?.map((btn: any, i: number) => (
-                        <div key={i} className="flex gap-2 items-center">
-                            <input value={btn.label} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-1 bg-slate-900 rounded-lg p-2 text-xs" placeholder="按鈕文字" />
-                            <input value={btn.target} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-[1.5] bg-slate-900 rounded-lg p-2 text-xs" placeholder="跳轉關鍵字" />
-                            {!isReadOnly && <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-full"><Trash2 size={12}/></button>}
-                        </div>
-                    ))}
-              </div>
+
+              {/* 🚀 單張卡片的全局分支按鈕 (輪播不顯示，因為輪播有自己獨立的按鈕) */}
+              {!isGroup && !isTimeRouter && nodeData.messageType !== 'carousel' && (
+                <div className="space-y-3 bg-slate-800/50 p-4 rounded-xl border border-[#deff9a]/20">
+                      <div className="flex justify-between items-center text-[10px] font-black text-[#deff9a] uppercase tracking-widest"><div className="flex items-center gap-1"><span>分支按鈕 ({nodeData.buttons?.length || 0}/6)</span><Info size={10} className="text-slate-400 cursor-help"/></div>{!isReadOnly && <button onClick={() => { if((nodeData.buttons?.length || 0) < 6) setNodeData({...nodeData, buttons: [...(nodeData.buttons || []), {label: "", target: ""}]}) }} className="text-[#deff9a] bg-slate-900/50 p-1.5 rounded"><Plus size={14}/></button>}</div>
+                      {nodeData.buttons?.map((btn: any, i: number) => (
+                          <div key={i} className="flex gap-2 items-center">
+                              <input value={btn.label} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].label = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-1 bg-slate-900 rounded-lg p-2 text-xs" placeholder="按鈕文字" />
+                              <input value={btn.target} disabled={isReadOnly} onChange={e => { const nb = [...nodeData.buttons]; nb[i].target = e.target.value; setNodeData({...nodeData, buttons: nb}) }} className="flex-[1.5] bg-slate-900 rounded-lg p-2 text-xs" placeholder="跳轉關鍵字" />
+                              {!isReadOnly && <button onClick={() => { const nb = [...nodeData.buttons]; nb.splice(i,1); setNodeData({...nodeData, buttons: nb}) }} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-full"><Trash2 size={12}/></button>}
+                          </div>
+                      ))}
+                </div>
+              )}
           </div>
+
           <div className="space-y-4 border-t border-white/5 pt-6 mt-4">
               <button onClick={() => setShowPreview(!showPreview)} className="w-full flex justify-between items-center bg-slate-800/50 hover:bg-slate-700 p-3 rounded-xl transition-colors border border-white/5"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">實機預覽</span>{showPreview ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</button>
               {showPreview && <div className="animate-in fade-in slide-in-from-top-2"><LineSimulator data={nodeData} /></div>}
