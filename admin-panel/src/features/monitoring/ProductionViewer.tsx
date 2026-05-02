@@ -95,8 +95,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
   const { setViewport } = useReactFlow();
   const initRef = useRef(false);
 
-  // 🚀 新增：自動發布排程器 (Frontend Watcher)
-  // 讓網頁代替 Cron Job，時間一到自動搬移資料，完美觸發畫面更新
+  // 🚀 自動發布排程器 (Frontend Watcher)
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "botConfig", "scheduled"), (snap) => {
       if (snap.exists()) {
@@ -108,11 +107,11 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
 
           const executeScheduledPublish = async () => {
             try {
-              const cleanData = { ...data, publishedAt: serverTimestamp() };
-              delete cleanData.scheduledAt;
-              // 將候車室資料搬到正式機
+              // 🚀 修正 TS2339：利用解構賦值排除 scheduledAt，避免使用 delete 引發型別報錯
+              const { scheduledAt, ...restData } = data;
+              const cleanData = { ...restData, publishedAt: serverTimestamp() };
+              
               await setDoc(doc(db, "botConfig", "production"), cleanData);
-              // 銷毀排程紀錄
               await deleteDoc(doc(db, "botConfig", "scheduled"));
               console.log("🚀 預約排程已自動發布！");
             } catch (error) {
@@ -121,10 +120,10 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
           };
 
           if (delay <= 0) {
-            executeScheduledPublish(); // 時間已過，立刻發布
+            executeScheduledPublish();
           } else {
             const timer = setTimeout(() => {
-              executeScheduledPublish(); // 時間到，精準發布
+              executeScheduledPublish();
             }, delay);
             return () => clearTimeout(timer);
           }
@@ -134,7 +133,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
     return () => unsub();
   }, []);
 
-  // 監聽正式機資料並渲染畫布
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
