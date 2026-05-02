@@ -126,12 +126,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         return base;
       });
 
-      parsedNodes.sort((a, b) => (a.type === 'group' ? -1 : 1));
+      // 修正 TS6133 錯誤：將未使用的變數 'b' 改為 '_' 
+      parsedNodes.sort((a, _) => (a.type === 'group' ? -1 : 1));
       setNodes(parsedNodes);
     });
     
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
-      // 🚀 清理行動 1：自動去重邏輯，揪出並刪除重疊的幽靈連線
       const uniqueEdges = new Map();
       const duplicateIds: string[] = [];
 
@@ -157,7 +157,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           }
       });
 
-      // 在背景無聲無息地把多餘的紅線/幽靈線從資料庫裡砍掉
       duplicateIds.forEach(id => deleteDoc(doc(db, "flowEdges", id)).catch(() => {}));
 
       setEdges(Array.from(uniqueEdges.values()).map(data => {
@@ -245,7 +244,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       await updateDoc(doc(db, "flowRules", n.id), p);
   }, [reactFlowInstance]);
 
-  // 🚀 清理行動 2：連帶刪除機制，刪除節點時，徹底把綁在它身上的連線從資料庫抹除
   const onNodesDelete = useCallback(async (dns: Node[]) => {
       const groupIds = new Set(dns.filter(d => d.type === 'group').map(d => d.id));
       const deletedNodeIds = new Set(dns.map(d => d.id));
@@ -294,7 +292,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: n.parentNode
       }));
 
-      nodesToPublish.sort((a: any, b: any) => (a.type === 'group' ? -1 : 1));
+      // 修正 TS6133 錯誤：將未使用的變數 'b' 改為 '_'
+      nodesToPublish.sort((a: any, _: any) => (a.type === 'group' ? -1 : 1));
 
       const edgesToPublish = flowObject.edges.map(e => ({
         id: String(e.id), source: String(e.source), target: String(e.target),
