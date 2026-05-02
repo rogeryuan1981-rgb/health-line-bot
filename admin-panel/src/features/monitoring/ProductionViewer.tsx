@@ -30,8 +30,8 @@ const getNodeStyle = (type: string = '', isStart: boolean) => {
 
 const CustomNodeProd = ({ data }: any) => {
   let options = data?.options || data?.buttons || [];
-  if (data?.messageType === 'carousel' && Array.isArray(data?.carouselCards)) {
-      options = data.carouselCards.flatMap((c: any) => c.buttons || []);
+  if (data?.messageType === 'carousel') {
+      options = (data.cards || []).flatMap((c: any) => c.buttons || []);
   }
   const isStart = data?.nodeName === '預設回覆';
 
@@ -203,7 +203,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
           </ReactFlow>
         </div>
         {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative">
-          {/* 🚀 物理修復：拔除毒藥參數 sourceCollection，讓 NodeEditPanel 正常讀取資料 */}
           <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} />
         </div>}
       </div>
