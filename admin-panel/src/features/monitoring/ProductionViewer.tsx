@@ -10,7 +10,6 @@ import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
 
-// 🚀 加入明確的 CustomEdgeData 型別，讓 TypeScript 認得 color, dashed 等自訂屬性
 interface CustomEdgeData {
   color?: string;
   strokeWidth?: number;
@@ -18,19 +17,20 @@ interface CustomEdgeData {
   [key: string]: any;
 }
 
-// 🚀 將多行反引號改為單行雙引號，徹底杜絕複製貼上引發的 TS1160 (Unterminated template literal) 錯誤
+type AppEdge = Edge<CustomEdgeData>;
+
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{ __html: "@keyframes smoothGlow { 0% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } 50% { box-shadow: 0 0 25px rgba(244,63,94,1); } 100% { box-shadow: 0 0 10px rgba(244,63,94,0.3); } } .node-current-glow { animation: smoothGlow 2.5s ease-in-out infinite !important; z-index: 1000; } .node-visited { border-color: #38bdf8 !important; box-shadow: 0 0 20px rgba(56,189,248,0.5) !important; } .react-flow__handle { pointer-events: none !important; cursor: default !important; }" }} />
 );
 
 const getNodeStyle = (type: string = '', isStart: boolean) => {
-  if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
+  if (isStart) return "bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]";
   const t = String(type).toLowerCase().trim();
-  if (t === 'flex') return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
-  if (t === 'carousel') return 'bg-fuchsia-900/80 border-fuchsia-500 text-fuchsia-100 shadow-fuchsia-900/50';
-  if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
-  if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
-  return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
+  if (t === 'flex') return "bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50";
+  if (t === 'carousel') return "bg-fuchsia-900/80 border-fuchsia-500 text-fuchsia-100 shadow-fuchsia-900/50";
+  if (['image', 'photo'].includes(t)) return "bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50";
+  if (['video'].includes(t)) return "bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50";
+  return "bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50";
 };
 
 const CustomNodeProd = ({ data }: any) => {
@@ -42,7 +42,7 @@ const CustomNodeProd = ({ data }: any) => {
   const isStart = data?.nodeName === '預設回覆';
 
   return (
-    <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data?.messageType, isStart)}`}>
+    <div className={"w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all " + getNodeStyle(data?.messageType, isStart)}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
       <div className="flex flex-col items-center mb-3 mt-1 text-white text-center">
         {isStart && <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full font-black text-xs shadow-2xl animate-bounce border-2 border-black z-50 whitespace-nowrap">🚀 START</div>}
@@ -51,13 +51,13 @@ const CustomNodeProd = ({ data }: any) => {
           {isStart && <Flag size={14} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />}
           {data?.nodeName || 'Node'}
         </div>
-        <div className={`mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10`}>{data?.messageType || 'TEXT'}</div>
+        <div className="mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-black/40 text-white/80 border border-white/10">{data?.messageType || 'TEXT'}</div>
       </div>
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
             {opt.label || '選項'}
-            <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
+            <Handle type="source" position={Position.Right} id={"opt_" + index} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
         ))}
       </div>
@@ -69,11 +69,11 @@ const CustomNodeProd = ({ data }: any) => {
 const GroupNodeProd = ({ data }: any) => {
   const isDone = data?.customLabel === '已完成';
   const isTodo = data?.customLabel === '待處理';
-  const bgColor = isDone ? 'bg-emerald-500/5 border-emerald-500/50' : isTodo ? 'bg-amber-500/5 border-amber-500/50' : 'bg-blue-500/5 border-blue-500/30';
-  const labelColor = isDone ? 'bg-emerald-600 text-white border-emerald-400' : isTodo ? 'bg-amber-600 text-white border-amber-400' : 'bg-blue-600 text-white border-blue-400';
+  const bgColor = isDone ? "bg-emerald-500/5 border-emerald-500/50" : isTodo ? "bg-amber-500/5 border-amber-500/50" : "bg-blue-500/5 border-blue-500/30";
+  const labelColor = isDone ? "bg-emerald-600 text-white border-emerald-400" : isTodo ? "bg-amber-600 text-white border-amber-400" : "bg-blue-600 text-white border-blue-400";
   return (
-    <div className={`w-full h-full border-2 border-dashed rounded-3xl relative transition-all ${bgColor}`}>
-      <div className={`absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 ${labelColor}`}>{data?.title || '區塊'}</div>
+    <div className={"w-full h-full border-2 border-dashed rounded-3xl relative transition-all " + bgColor}>
+      <div className={"absolute -top-4 left-6 px-5 py-2 rounded-xl text-sm font-black uppercase tracking-widest shadow-2xl border-2 z-50 " + labelColor}>{data?.title || '區塊'}</div>
     </div>
   );
 };
@@ -91,7 +91,6 @@ const TimeRouterNodeProd = ({ data }: any) => (
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  // 🚀 使用 React Flow 內建泛型，徹底符合 TS 規範
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   
@@ -111,7 +110,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             id: n.id,
             position: n.position,
             type: n.type,
-            data: JSON.parse(JSON.stringify(n.data || {})), // 強制深拷貝觸發畫面更新
+            data: JSON.parse(JSON.stringify(n.data || {})), 
             style: n.style || {} 
           };
           
@@ -132,7 +131,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         setNodes(safeNodes);
         
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
-            const cleanEdge: Edge = { ...e }; // 符合預設 Edge 規範
+            const cleanEdge: Edge = { ...e }; 
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
@@ -158,15 +157,14 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             const isCurrent = activePath.nodes?.length ? n.id === activePath.nodes[activePath.nodes.length - 1] : false;
             const isVisited = activePath.nodes?.includes(n.id) && !isCurrent;
             const clean = (n.className || '').replace(/node-current-glow|node-visited/g, '').trim();
-            if (isCurrent) return { ...n, className: `${clean} node-current-glow` };
-            if (isVisited) return { ...n, className: `${clean} node-visited` };
+            if (isCurrent) return { ...n, className: clean + " node-current-glow" };
+            if (isVisited) return { ...n, className: clean + " node-visited" };
             return { ...n, className: clean };
         }));
 
         setEdges(eds => eds.map(e => {
             const isVisited = activePath.edges?.includes(e.id) || false;
             
-            // 🚀 精準轉型，解決 TS 抱怨
             const customData = (e.data || {}) as CustomEdgeData;
             const defaultColor = customData.color || '#deff9a';
             const defaultWidth = Number(customData.strokeWidth) || 2;
@@ -207,7 +205,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesConnectable={false}
             elementsSelectable={true} 
             onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange} // 🚀 完美合規，不需要 as any 了
+            onEdgesChange={onEdgesChange as any} 
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
