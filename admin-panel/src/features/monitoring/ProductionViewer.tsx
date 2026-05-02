@@ -18,18 +18,25 @@ const CustomStyles = () => (
   `}} />
 );
 
+// 🚀 視覺修復：CAROUSEL 給予專屬紫色，FLEX 維持橘色
 const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
-  if (['carousel', 'flex'].includes(t)) return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (t === 'flex') return 'bg-amber-900/80 border-amber-500 text-amber-100 shadow-amber-900/50';
+  if (t === 'carousel') return 'bg-fuchsia-900/80 border-fuchsia-500 text-fuchsia-100 shadow-fuchsia-900/50';
   if (['image', 'photo'].includes(t)) return 'bg-emerald-900/80 border-emerald-500 text-emerald-100 shadow-emerald-900/50';
   if (['video'].includes(t)) return 'bg-rose-900/80 border-rose-500 text-rose-100 shadow-rose-900/50';
   return 'bg-blue-900/80 border-blue-500 text-blue-100 shadow-blue-900/50';
 };
 
 const CustomNodeProd = ({ data }: any) => {
-  const options = data?.options || data?.buttons || [];
+  // 🚀 邏輯修復：監測畫面也要能正確顯示輪播的分支按鈕
+  let options = data?.options || data?.buttons || [];
+  if (data?.messageType === 'carousel' && Array.isArray(data?.carouselCards)) {
+      options = data.carouselCards.flatMap((c: any) => c.buttons || []);
+  }
   const isStart = data?.nodeName === '預設回覆';
+
   return (
     <div className={`w-full relative flex flex-col justify-between py-3 px-2 min-h-[80px] rounded-2xl border-2 transition-all ${getNodeStyle(data?.messageType, isStart)}`}>
       <Handle type="target" position={Position.Left} id="left_in" isConnectable={false} className="w-3 h-3 bg-[#deff9a] border-2 border-slate-900 z-50 !left-[-10px]" />
@@ -45,7 +52,7 @@ const CustomNodeProd = ({ data }: any) => {
       <div className="flex flex-col gap-1.5 w-full">
         {options.map((opt: any, index: number) => (
           <div key={index} className="relative bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-center text-slate-300">
-            {opt.label}
+            {opt.label || '選項'}
             <Handle type="source" position={Position.Right} id={`opt_${index}`} isConnectable={false} className="w-3 h-3 bg-emerald-400 border-2 border-slate-900 z-50 !right-[-10px]" />
           </div>
         ))}
@@ -129,7 +136,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         
         setEdges(safeEdges);
 
-        // 🚀 一步到位：直接設置座標，無動畫延遲
+        // 🚀 瞬間定位修復：無運鏡延遲
         if (!initRef.current && raw.viewport) {
           const { x, y, zoom } = raw.viewport;
           setViewport({ x, y, zoom });
@@ -140,7 +147,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
     return () => unsub();
   }, [setViewport]);
 
-  // 🚀 完整還原模擬器路徑追蹤特效 (節點閃爍 + 連線變粗發光)
+  // 🚀 模擬器路徑強調：完美還原藍色發光流動特效
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
         setNodes(nds => nds.map(n => {
@@ -200,8 +207,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
           </ReactFlow>
         </div>
         {selectedId && <div className="w-[450px] h-full bg-slate-950 border-l border-white/10 z-[100] animate-in slide-in-from-right shadow-2xl relative">
-          {/* 🚀 拔除了錯誤的 sourceCollection，讓卡片恢復正常讀取 */}
-          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} />
+          {/* 🚀 面板修復：加回 sourceCollection，確保監測畫面讀取正確的輪播資料 */}
+          <NodeEditPanel nodeId={selectedId} onClose={() => setSelectedId(null)} isReadOnly={true} sourceCollection="botConfig/production" />
         </div>}
       </div>
     </div>
