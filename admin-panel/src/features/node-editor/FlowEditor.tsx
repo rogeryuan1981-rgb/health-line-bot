@@ -143,7 +143,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             interactionWidth: 25 
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
-        if (data.targetHandle) edgeObj.targetHandle = data.targetHandle;
+        
+        // 🚀 強制補救：若沒有目標接點，一律預設為 left_in，防止連線插在節點正中間
+        edgeObj.targetHandle = data.targetHandle || 'left_in';
+
         if (data.arrowDirection && data.arrowDirection !== 'none') {
             if (data.arrowDirection !== 'backward') edgeObj.markerEnd = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
             if (data.arrowDirection === 'backward' || data.arrowDirection === 'dual') edgeObj.markerStart = { type: MarkerType.ArrowClosed, color: data.color || '#deff9a' };
@@ -255,13 +258,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     if (!window.confirm("⚠️ 確定要將畫布配置發布到正式機嗎？")) return;
     setIsPublishing(true);
     try {
+      const flowObject = reactFlowInstance.toObject();
       const sanitize = (obj: any) => JSON.parse(JSON.stringify(obj));
-      
-      // 直接拿畫面上真實渲染的節點與連線發布，不再使用隱藏或過濾邏輯
-      const currentNodes = reactFlowInstance.getNodes();
-      const currentEdges = reactFlowInstance.getEdges();
 
-      const nodesToPublish = currentNodes.map(n => sanitize({
+      const nodesToPublish = flowObject.nodes.map(n => sanitize({
         id: String(n.id),
         position: n.position || { x: 0, y: 0 }, 
         type: String(n.type || 'custom'),
@@ -278,23 +278,41 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           return 0;
       });
 
-      const edgesToPublish = currentEdges.map(e => sanitize({
-        id: String(e.id), source: String(e.source), target: String(e.target),
-        sourceHandle: e.sourceHandle || undefined,
-        targetHandle: e.targetHandle || undefined,
-        type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
-        style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
-        zIndex: e.zIndex 
-      }));
+      const currentNodesMap = new Map(nodes.map(n => [n.id, n]));
+      const safeEdgesToPublish: any[] = [];
 
-      const flowObject = reactFlowInstance.toObject();
-      const cleanViewport = sanitize(flowObject.viewport || { x: 0, y: 0, zoom: 1 });
+      for (const e of edges) {
+          const sNode = currentNodesMap.get(e.source);
+          if (!sNode) continue;
+
+          // 🚀 幽靈死線終結者：如果節點明明有按鈕選項，但連線卻沒有綁定在任何按鈕上(e.g., default_out)，代表這是一條無效舊線
+          const opts = sNode.data?.options || sNode.data?.buttons || [];
+          if (opts.length > 0 && (!e.sourceHandle || !e.sourceHandle.startsWith('opt_'))) {
+              // 抓到幽靈線，直接從 Firebase 裡物理刪除！
+              deleteDoc(doc(db, "flowEdges", e.id)).catch(() => {});
+              continue; 
+          }
+
+          safeEdgesToPublish.push(sanitize({
+              id: String(e.id), source: String(e.source), target: String(e.target),
+              sourceHandle: e.sourceHandle || undefined,
+              // 強制補救目標接點
+              targetHandle: e.targetHandle || 'left_in',
+              type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+              style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd,
+              zIndex: e.zIndex 
+          }));
+      }
+
+      const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
+      const cleanEdges = JSON.parse(JSON.stringify(safeEdgesToPublish));
+      const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
-          nodes: nodesToPublish, edges: edgesToPublish, viewport: cleanViewport, 
+          nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！正式機畫面已完全同步。");
+      alert("🚀 發布成功！幽靈連線已從資料庫物理抹除，正式機畫面已同步更新！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -363,6 +381,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
+        // 🚀 雙擊連線直接物理刪除快捷鍵，方便快速清理
+        onEdgeDoubleClick={useCallback(async (_, e) => {
+            if (window.confirm('確定要刪除這條連線嗎？')) {
+                await deleteDoc(doc(db, "flowEdges", e.id));
+            }
+        }, [])}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
         onNodesDelete={onNodesDelete}
         onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
