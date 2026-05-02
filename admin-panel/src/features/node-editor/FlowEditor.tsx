@@ -162,14 +162,25 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     }
   }, [activePath]);
 
-  // 🚀 關鍵修復一：徹底解決「節點不黏群組」的問題。精確的數學計算防禦。
+  const handleNodesChange = useCallback((changes: any) => {
+      setNodes((nds) => {
+          const updatedNodes = applyNodeChanges(changes, nds);
+          const existingIds = new Set(updatedNodes.map(n => n.id));
+          return updatedNodes.map(n => {
+              if (n.parentNode && !existingIds.has(n.parentNode)) {
+                  return { ...n, parentNode: undefined }; 
+              }
+              return n;
+          });
+      });
+  }, [setNodes]);
+
   const onNodeDragStop = useCallback(async (_: any, n: Node) => {
       const p: any = { position: n.position };
       if (n.type === 'group') {
           p.width = n.width; p.height = n.height;
       } else {
           const flowNodes = reactFlowInstance.getNodes();
-          // 強制取得節點的絕對座標，避免頂層節點沒有 positionAbsolute 導致判斷失敗
           const getAbs = (node: Node) => node.positionAbsolute || node.position;
           const nAbs = getAbs(n);
           
@@ -189,15 +200,14 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           if (targetGroup) {
               const gAbs = getAbs(targetGroup);
               p.parentNode = targetGroup.id;
-              // React Flow 強制要求群組內的節點必須轉換為「相對座標」
               p.position = {
                   x: nAbs.x - gAbs.x,
                   y: nAbs.y - gAbs.y
               };
           } else {
-              p.parentNode = null; // 拖出群組範圍，自動解綁
+              p.parentNode = null; 
               if (n.parentNode && nAbs) {
-                  p.position = nAbs; // 解綁後轉回絕對座標，防止卡片瞬間飛走
+                  p.position = nAbs; 
               }
           }
       }
@@ -213,7 +223,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           for (const docSnap of snap.docs) {
               const data = docSnap.data();
               if (data.parentNode && groupIds.has(data.parentNode)) {
-                  // 把掛在已刪除群組上的卡片安全解綁
                   await updateDoc(doc(db, "flowRules", docSnap.id), { parentNode: null });
               }
           }
@@ -229,7 +238,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
       const nodesToPublish = flowObject.nodes.map(n => sanitize({
         id: String(n.id),
-        // 🚀 關鍵修復二：徹底解決「卡片出走偏移」！必須使用 n.position 讓發布的資料原汁原味保留相對座標
         position: n.position || { x: 0, y: 0 }, 
         type: String(n.type || 'custom'),
         data: n.data || {},
@@ -305,7 +313,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         defaultViewport={initialViewport.current}
         snapToGrid={snapToGrid} snapGrid={[20, 20]}
         connectionMode={ConnectionMode.Loose}
-        onNodesChange={(c) => setNodes(s => applyNodeChanges(c, s))} 
+        onNodesChange={handleNodesChange} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
         onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
@@ -314,6 +322,8 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         onNodesDelete={onNodesDelete}
         onEdgesDelete={useCallback(async (des: Edge[]) => { for(const e of des) await deleteDoc(doc(db, "flowEdges", e.id)); }, [])}
         onNodeDragStop={onNodeDragStop}
+        // 🚀 關鍵修復三：補上遺漏的畫布位置存檔邏輯！這樣下次進來才會在原本的地方。
+        onMoveEnd={(_, viewport) => localStorage.setItem('flow-viewport', JSON.stringify(viewport))}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#334155" />
         <Controls />
@@ -327,3 +337,4 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 export default function FlowEditor({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
   return <div className="w-full h-full bg-[#020617] overflow-hidden font-sans"><ReactFlowProvider><FlowContent activePath={activePath} /></ReactFlowProvider></div>;
 }
+```</ReactFlow>
