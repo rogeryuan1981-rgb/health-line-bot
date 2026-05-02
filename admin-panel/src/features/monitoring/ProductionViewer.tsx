@@ -2,13 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import ReactFlow, { 
   Background, BackgroundVariant, Node, Edge, 
   ReactFlowProvider, Handle, Position, useReactFlow, Controls,
-  useNodesState, useEdgesState // 🚀 引入 React Flow 原生的狀態管理器
+  useNodesState, useEdgesState 
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { ShieldCheck, Flag, Clock, Globe } from 'lucide-react';
 import NodeEditPanel from '../message-form/NodeEditPanel';
+
+// 🚀 加入明確的 CustomEdgeData 型別，解決 TypeScript 編譯錯誤
+interface CustomEdgeData {
+  color?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+  [key: string]: any;
+}
+
+// 擴充原生的 Edge 型別，讓 data 屬性不再是 unknwon
+type AppEdge = Edge<CustomEdgeData>;
 
 const CustomStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -87,9 +98,9 @@ const TimeRouterNodeProd = ({ data }: any) => (
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
 function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  // 🚀 核心修復：改用 React Flow 原生管理，確保畫面與資料強制同步
   const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
+  // 🚀 指定 Edge 的型別為 AppEdge
+  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge[]>([]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
@@ -107,7 +118,6 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             id: n.id,
             position: n.position,
             type: n.type,
-            // 🚀 核心修復：強制深拷貝 data，打破 React Flow 淺層比對的快取，保證卡片更新
             data: JSON.parse(JSON.stringify(n.data || {})),
             style: n.style || {} 
           };
@@ -129,7 +139,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
         setNodes(safeNodes);
         
         const safeEdges = (raw.edges || []).filter(Boolean).map((e: any) => {
-            const cleanEdge = { ...e };
+            const cleanEdge: AppEdge = { ...e };
             if (cleanEdge.markerStart === null) delete cleanEdge.markerStart;
             if (cleanEdge.markerEnd === null) delete cleanEdge.markerEnd;
             if (cleanEdge.style === null) delete cleanEdge.style;
@@ -162,6 +172,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
 
         setEdges(eds => eds.map(e => {
             const isVisited = activePath.edges?.includes(e.id) || false;
+            
+            // 🚀 正確讀取自訂義的 data 屬性，不再引發 TypeScript 錯誤
             const defaultColor = e.data?.color || '#deff9a';
             const defaultWidth = Number(e.data?.strokeWidth) || 2;
             const defaultDashed = e.data?.dashed !== false;
@@ -201,7 +213,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesConnectable={false}
             elementsSelectable={true} 
             onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange} 
+            onEdgesChange={onEdgesChange as any} // 🚀 忽略內部泛型差異，專注外部渲染
             onNodeClick={(_, n) => n.type !== 'group' && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
