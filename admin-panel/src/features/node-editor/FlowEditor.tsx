@@ -98,12 +98,10 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
-  const validNodesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       const validNodeIds = new Set(snap.docs.map(d => d.id));
-      validNodesRef.current = validNodeIds;
 
       let parsedNodes = snap.docs.map(d => {
         const data = d.data();
@@ -132,41 +130,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
       setNodes(parsedNodes);
     });
     
+    // 將資料庫中的線無濾鏡、原汁原味地讀取出來，我們不再依靠視覺遮掩
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
-      const uniqueEdges = new Map();
-      const edgesToDelete: string[] = [];
-
-      snap.docs.forEach(d => {
-          const data = d.data();
-          
-          if (!validNodesRef.current.has(data.source) || !validNodesRef.current.has(data.target)) {
-              edgesToDelete.push(d.id);
-              return;
-          }
-
-          const key = `${data.source}_${data.sourceHandle || 'default'}`;
-          
-          if (uniqueEdges.has(key)) {
-              const existing = uniqueEdges.get(key);
-              const existingTime = existing.createdAt?.toMillis?.() || 0;
-              const newTime = data.createdAt?.toMillis?.() || 0;
-
-              if (newTime >= existingTime) {
-                  edgesToDelete.push(existing.id);
-                  uniqueEdges.set(key, { id: d.id, ...data });
-              } else {
-                  edgesToDelete.push(d.id);
-              }
-          } else {
-              uniqueEdges.set(key, { id: d.id, ...data });
-          }
-      });
-
-      edgesToDelete.forEach(id => deleteDoc(doc(db, "flowEdges", id)).catch(() => {}));
-
-      setEdges(Array.from(uniqueEdges.values()).map(data => {
+      setEdges(snap.docs.map(d => {
+        const data = d.data();
         const edgeObj: any = {
-            id: data.id, source: data.source, target: data.target,
+            id: d.id, source: data.source, target: data.target,
             type: data.pathType || 'smoothstep', animated: data.dashed !== false,
             style: { stroke: data.color || '#deff9a', strokeWidth: Number(data.strokeWidth) || 2, strokeDasharray: data.dashed ? '5 5' : 'none' }
         };
@@ -299,22 +268,54 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
 
       nodesToPublish.sort((a: any, _: any) => (a.type === 'group' ? -1 : 1));
 
-      const edgesToPublish = flowObject.edges.map(e => ({
-        id: String(e.id), source: String(e.source), target: String(e.target),
-        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
-        type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
-        style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
-      }));
+      // 🚀 發布層防線：在寫入 botConfig 前，嚴格篩選每一條連線，徹底拒絕髒資料寫入
+      const nodesMap = new Map(flowObject.nodes.map(n => [n.id, n]));
+      const occupiedSockets = new Set<string>();
+      const safeEdgesToPublish: any[] = [];
+
+      // 從最新的線開始檢查（如果有舊線重疊，保留最新的）
+      const reversedEdges = [...flowObject.edges].reverse();
+
+      for (const e of reversedEdges) {
+          const sNode = nodesMap.get(e.source);
+          const tNode = nodesMap.get(e.target);
+          
+          // 防線 1：起點或終點節點已經被刪除，這是一條死線
+          if (!sNode || !tNode) continue; 
+
+          // 防線 2：按鈕已經被減少或刪除，這個接點不存在了
+          if (sNode.type === 'custom') {
+              const opts = sNode.data?.options || sNode.data?.buttons || [];
+              if (e.sourceHandle?.startsWith('opt_')) {
+                  const idx = parseInt(e.sourceHandle.replace('opt_', ''), 10);
+                  if (idx >= opts.length) continue; 
+              }
+          }
+
+          // 防線 3：一個接點只能有一條線，防止重疊的舊線被夾帶發布
+          const socketKey = `${e.source}_${e.sourceHandle || 'default'}`;
+          if (occupiedSockets.has(socketKey)) continue; 
+
+          occupiedSockets.add(socketKey);
+          safeEdgesToPublish.push({
+              id: String(e.id), source: String(e.source), target: String(e.target),
+              sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+              type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+              style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
+          });
+      }
+      
+      safeEdgesToPublish.reverse(); // 轉回正確順序
 
       const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
-      const cleanEdges = JSON.parse(JSON.stringify(edgesToPublish));
+      const cleanEdges = JSON.parse(JSON.stringify(safeEdgesToPublish));
       const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
           nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！幽靈連線已從監測畫面中被清除了！");
+      alert("🚀 發布成功！無效連線已從發布資料中徹底剔除！");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -361,13 +362,28 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         </div>
       )}
       <ReactFlow 
-        nodes={nodes} edges={edges} nodeTypes={nodeTypes} 
+        nodes={nodes} 
+        edges={edges} 
+        nodeTypes={nodeTypes} 
         defaultViewport={initialViewport.current}
         snapToGrid={snapToGrid} snapGrid={[20, 20]}
         connectionMode={ConnectionMode.Loose}
         onNodesChange={handleNodesChange} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
-        onConnect={useCallback(async (p: Connection) => { await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); }, [])}
+        // 🚀 源頭防線：拉出新線時，嚴格比對並覆蓋同一個接點的舊線
+        onConnect={useCallback(async (p: Connection) => { 
+            const edgesSnap = await getDocs(collection(db, "flowEdges"));
+            const deletePromises: any[] = [];
+            edgesSnap.forEach(d => {
+                const data = d.data();
+                if (data.source === p.source && data.sourceHandle === p.sourceHandle) {
+                    deletePromises.push(deleteDoc(doc(db, "flowEdges", d.id)));
+                }
+            });
+            await Promise.all(deletePromises);
+
+            await addDoc(collection(db, "flowEdges"), { ...p, type: 'smoothstep', color: '#deff9a', createdAt: serverTimestamp() }); 
+        }, [])}
         onNodeClick={(_, n) => { setSelectedId(n.id); setActivePanel('node'); }}
         onEdgeClick={(_, e) => { setSelectedId(e.id); setActivePanel('edge'); }}
         onPaneClick={() => { setActivePanel(null); setSelectedId(null); }}
