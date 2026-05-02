@@ -19,7 +19,6 @@ const CustomStyles = () => (
   `}} />
 );
 
-// 🚀 視覺修復：徹底分離 FLEX 與 CAROUSEL 的顏色，給輪播卡片專屬的紫色
 export const getNodeStyle = (type: string = '', isStart: boolean) => {
   if (isStart) return 'bg-slate-900 border-yellow-400 text-yellow-100 shadow-[0_0_30px_rgba(250,204,21,0.4)] border-[3px]';
   const t = String(type).toLowerCase().trim();
@@ -31,7 +30,6 @@ export const getNodeStyle = (type: string = '', isStart: boolean) => {
 };
 
 const CustomNode = ({ data, isConnectable }: any) => {
-  // 🚀 邏輯修復：正確提取輪播卡片內部的按鈕，讓節點能長出分支接點
   let options = data.options || data.buttons || [];
   if (data.messageType === 'carousel' && Array.isArray(data.carouselCards)) {
       options = data.carouselCards.flatMap((c: any) => c.buttons || []);
@@ -106,7 +104,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
-  // 自動清理不合法連線 (確保資料庫衛生)
   useEffect(() => {
       const healDatabase = async () => {
           try {
@@ -135,7 +132,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
                   if (sNode.messageType === 'time_router') {
                       isValidHandle = (e.sourceHandle === 'business' || e.sourceHandle === 'off-hours');
                   } else {
-                      // 🚀 邏輯修復：清理腳本也要認得輪播的按鈕，才不會誤砍連線
                       let opts = sNode.options || sNode.buttons || [];
                       if (sNode.messageType === 'carousel' && Array.isArray(sNode.carouselCards)) {
                           opts = sNode.carouselCards.flatMap((c: any) => c.buttons || []);
@@ -224,7 +220,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
             data: data 
         };
         if (data.sourceHandle) edgeObj.sourceHandle = data.sourceHandle;
-        
         edgeObj.targetHandle = data.targetHandle || 'left_in';
 
         if (data.arrowDirection && data.arrowDirection !== 'none') {
@@ -239,7 +234,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
     return () => { unsubNodes(); unsubEdges(); unsubSnaps(); };
   }, []);
 
-  // 路徑強調特效
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
         setNodes(nds => nds.map(n => {
@@ -377,7 +371,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           const sNode = currentNodesMap.get(e.source);
           if (!sNode) continue;
 
-          // 🚀 發布過濾邏輯：同步支援輪播卡片的按鈕提取
           let opts = sNode.data?.options || sNode.data?.buttons || [];
           if (sNode.data?.messageType === 'carousel' && Array.isArray(sNode.data?.carouselCards)) {
               opts = sNode.data.carouselCards.flatMap((c: any) => c.buttons || []);
