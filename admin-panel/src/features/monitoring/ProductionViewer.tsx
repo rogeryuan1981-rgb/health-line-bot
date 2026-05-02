@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import ReactFlow, { 
   Background, BackgroundVariant, Node, Edge, 
-  ReactFlowProvider, Handle, Position, useReactFlow, Controls,
-  useNodesState, useEdgesState 
+  ReactFlowProvider, Handle, Position, useReactFlow, Controls 
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { onSnapshot, doc } from "firebase/firestore";
@@ -90,9 +89,10 @@ const TimeRouterNodeProd = ({ data }: any) => (
 
 const nodeTypes = { custom: CustomNodeProd, group: GroupNodeProd, timeRouter: TimeRouterNodeProd };
 
-function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+function function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edges: string[] } }) {
+  // 🚀 換回原生的 useState，不讓 React Flow 攔截狀態
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { setViewport } = useReactFlow();
@@ -110,7 +110,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             id: n.id,
             position: n.position,
             type: n.type,
-            // 🚀 重要：強制深拷貝 data 確保 React Flow 刷新畫面，解決預約發布同步問題
+            // 🚀 保留深度拷貝，確保預約發布時能強制觸發畫布更新
             data: JSON.parse(JSON.stringify(n.data || {})), 
             style: n.style || {} 
           };
@@ -150,9 +150,8 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
       }
     });
     return () => unsub();
-  }, [setViewport, setNodes, setEdges]);
+  }, [setViewport]);
 
-  // 🚀 保留路徑發光特效，嚴禁精簡
   useEffect(() => {
     if (activePath && activePath.nodes && activePath.edges) {
         setNodes(nds => nds.map(n => {
@@ -185,7 +184,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             };
         }));
     }
-  }, [activePath, setNodes, setEdges]);
+  }, [activePath]);
 
   return (
     <div className="w-full h-full bg-[#020617] font-sans relative overflow-hidden">
@@ -205,8 +204,7 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
             nodesDraggable={false} 
             nodesConnectable={false}
             elementsSelectable={true} 
-            onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange} 
+            // 🚀 拔除 onNodesChange 與 onEdgesChange，維持純唯讀
             onNodeClick={(_, n) => n.type !== "group" && setSelectedId(n.id)} 
             onPaneClick={() => setSelectedId(null)}
           >
