@@ -4,7 +4,7 @@ import ReactFlow, {
   ReactFlowProvider, Handle, Position, useReactFlow, Controls 
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { onSnapshot, doc } from "firebase/firestore";
+import { onSnapshot, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { ShieldCheck, Flag, Clock, Globe } from "lucide-react";
 import NodeEditPanel from "../message-form/NodeEditPanel";
@@ -95,6 +95,46 @@ function ProductionCanvas({ activePath }: { activePath?: { nodes: string[], edge
   const { setViewport } = useReactFlow();
   const initRef = useRef(false);
 
+  // 🚀 新增：自動發布排程器 (Frontend Watcher)
+  // 讓網頁代替 Cron Job，時間一到自動搬移資料，完美觸發畫面更新
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "botConfig", "scheduled"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.scheduledAt) {
+          const targetTime = data.scheduledAt.toMillis ? data.scheduledAt.toMillis() : (data.scheduledAt.seconds * 1000);
+          const now = Date.now();
+          const delay = targetTime - now;
+
+          const executeScheduledPublish = async () => {
+            try {
+              const cleanData = { ...data, publishedAt: serverTimestamp() };
+              delete cleanData.scheduledAt;
+              // 將候車室資料搬到正式機
+              await setDoc(doc(db, "botConfig", "production"), cleanData);
+              // 銷毀排程紀錄
+              await deleteDoc(doc(db, "botConfig", "scheduled"));
+              console.log("🚀 預約排程已自動發布！");
+            } catch (error) {
+              console.error("預約發布失敗:", error);
+            }
+          };
+
+          if (delay <= 0) {
+            executeScheduledPublish(); // 時間已過，立刻發布
+          } else {
+            const timer = setTimeout(() => {
+              executeScheduledPublish(); // 時間到，精準發布
+            }, delay);
+            return () => clearTimeout(timer);
+          }
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // 監聽正式機資料並渲染畫布
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "botConfig", "production"), (snap) => {
       if (snap.exists()) {
