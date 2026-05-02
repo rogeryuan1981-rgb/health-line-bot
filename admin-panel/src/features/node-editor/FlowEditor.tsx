@@ -99,10 +99,65 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
 
+  // 🛡️ 資料庫自我修復器：載入時自動巡檢，將多餘或失效的幽靈連線直接從 Firebase 中物理刪除
+  useEffect(() => {
+      const healDatabase = async () => {
+          try {
+              const [nSnap, eSnap] = await Promise.all([
+                  getDocs(collection(db, "flowRules")),
+                  getDocs(collection(db, "flowEdges"))
+              ]);
+              const validNodes = new Map();
+              nSnap.docs.forEach(d => validNodes.set(d.id, d.data()));
+
+              const edgesData = eSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+              // 依時間排序，確保後續檢查時保留最新的一條
+              edgesData.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+              const occupiedSockets = new Set<string>();
+              const trashIds = new Set<string>();
+
+              for (const e of edgesData) {
+                  // 1. 若連線的起點或終點節點已經不存在 -> 標記刪除
+                  if (!validNodes.has(e.source) || !validNodes.has(e.target)) {
+                      trashIds.add(e.id);
+                      continue;
+                  }
+
+                  // 2. 若起點的接點(Button)數量已被刪減導致接點失效 -> 標記刪除
+                  const sNode = validNodes.get(e.source);
+                  if (sNode.messageType !== 'time_router' && e.sourceHandle?.startsWith('opt_')) {
+                      const opts = sNode.options || sNode.buttons || [];
+                      const idx = parseInt(e.sourceHandle.replace('opt_', ''), 10);
+                      if (idx >= opts.length) {
+                          trashIds.add(e.id);
+                          continue;
+                      }
+                  }
+
+                  // 3. 確保一個接點只能有一條線，發現舊的重疊線 -> 標記刪除
+                  const socketKey = `${e.source}_${e.sourceHandle || 'default'}`;
+                  if (occupiedSockets.has(socketKey)) {
+                      trashIds.add(e.id);
+                      continue;
+                  }
+                  
+                  occupiedSockets.add(socketKey);
+              }
+
+              // 對所有標記為垃圾的連線執行物理刪除
+              const deletePromises = Array.from(trashIds).map(id => deleteDoc(doc(db, "flowEdges", id)));
+              await Promise.all(deletePromises);
+          } catch (err) {
+              console.error("DB Auto-heal failed", err);
+          }
+      };
+
+      healDatabase();
+  }, []);
+
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
-      const validNodeIds = new Set(snap.docs.map(d => d.id));
-
       let parsedNodes = snap.docs.map(d => {
         const data = d.data();
         let base: any = { id: d.id, position: data.position || { x: 100, y: 100 } };
@@ -120,17 +175,21 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
           base.data = { ...data, label: data.nodeName };
         }
 
-        if (data.parentNode && validNodeIds.has(data.parentNode)) {
+        if (data.parentNode) {
             base.parentNode = data.parentNode;
         }
         return base;
       });
 
-      parsedNodes.sort((a, _) => (a.type === 'group' ? -1 : 1));
+      parsedNodes.sort((a, b) => {
+          if (a.type === 'group' && b.type !== 'group') return -1;
+          if (a.type !== 'group' && b.type === 'group') return 1;
+          return 0;
+      });
       setNodes(parsedNodes);
     });
     
-    // 將資料庫中的線無濾鏡、原汁原味地讀取出來，我們不再依靠視覺遮掩
+    // 直接反映真實資料庫狀態，所見即所得
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       setEdges(snap.docs.map(d => {
         const data = d.data();
@@ -266,56 +325,29 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: n.parentNode
       }));
 
-      nodesToPublish.sort((a: any, _: any) => (a.type === 'group' ? -1 : 1));
+      nodesToPublish.sort((a: any, b: any) => {
+          if (a.type === 'group' && b.type !== 'group') return -1;
+          if (a.type !== 'group' && b.type === 'group') return 1;
+          return 0;
+      });
 
-      // 🚀 發布層防線：在寫入 botConfig 前，嚴格篩選每一條連線，徹底拒絕髒資料寫入
-      const nodesMap = new Map(flowObject.nodes.map(n => [n.id, n]));
-      const occupiedSockets = new Set<string>();
-      const safeEdgesToPublish: any[] = [];
-
-      // 從最新的線開始檢查（如果有舊線重疊，保留最新的）
-      const reversedEdges = [...flowObject.edges].reverse();
-
-      for (const e of reversedEdges) {
-          const sNode = nodesMap.get(e.source);
-          const tNode = nodesMap.get(e.target);
-          
-          // 防線 1：起點或終點節點已經被刪除，這是一條死線
-          if (!sNode || !tNode) continue; 
-
-          // 防線 2：按鈕已經被減少或刪除，這個接點不存在了
-          if (sNode.type === 'custom') {
-              const opts = sNode.data?.options || sNode.data?.buttons || [];
-              if (e.sourceHandle?.startsWith('opt_')) {
-                  const idx = parseInt(e.sourceHandle.replace('opt_', ''), 10);
-                  if (idx >= opts.length) continue; 
-              }
-          }
-
-          // 防線 3：一個接點只能有一條線，防止重疊的舊線被夾帶發布
-          const socketKey = `${e.source}_${e.sourceHandle || 'default'}`;
-          if (occupiedSockets.has(socketKey)) continue; 
-
-          occupiedSockets.add(socketKey);
-          safeEdgesToPublish.push({
-              id: String(e.id), source: String(e.source), target: String(e.target),
-              sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
-              type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
-              style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
-          });
-      }
-      
-      safeEdgesToPublish.reverse(); // 轉回正確順序
+      // 由於資料庫已經在建立/載入時保持 100% 乾淨，發布時直接原汁原味夾帶
+      const edgesToPublish = flowObject.edges.map(e => sanitize({
+        id: String(e.id), source: String(e.source), target: String(e.target),
+        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+        type: String(e.type || 'smoothstep'), animated: Boolean(e.animated),
+        style: e.style, markerStart: e.markerStart, markerEnd: e.markerEnd
+      }));
 
       const cleanNodes = JSON.parse(JSON.stringify(nodesToPublish));
-      const cleanEdges = JSON.parse(JSON.stringify(safeEdgesToPublish));
+      const cleanEdges = JSON.parse(JSON.stringify(edgesToPublish));
       const cleanViewport = JSON.parse(JSON.stringify(flowObject.viewport || { x: 0, y: 0, zoom: 1 }));
 
       await setDoc(doc(db, "botConfig", "production"), { 
           nodes: cleanNodes, edges: cleanEdges, viewport: cleanViewport, 
           publishedAt: serverTimestamp(), publisher: "Roger" 
       });
-      alert("🚀 發布成功！無效連線已從發布資料中徹底剔除！");
+      alert("🚀 發布成功！正式機畫面已同步至最真實、純淨的狀態。");
     } catch (e: any) { alert(`發布失敗：${e.message}`); } finally { setIsPublishing(false); }
   };
 
@@ -370,7 +402,7 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         connectionMode={ConnectionMode.Loose}
         onNodesChange={handleNodesChange} 
         onEdgesChange={(c) => setEdges(s => applyEdgeChanges(c, s))}
-        // 🚀 源頭防線：拉出新線時，嚴格比對並覆蓋同一個接點的舊線
+        // 🛡️ 源頭攔截：每當拉出一條新線，強制在 Firebase 刪除同一接點的舊連線
         onConnect={useCallback(async (p: Connection) => { 
             const edgesSnap = await getDocs(collection(db, "flowEdges"));
             const deletePromises: any[] = [];
