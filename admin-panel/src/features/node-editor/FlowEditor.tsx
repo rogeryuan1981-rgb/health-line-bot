@@ -98,10 +98,12 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
   
   const reactFlowInstance = useReactFlow(); 
   const initialViewport = useRef(JSON.parse(localStorage.getItem('flow-viewport') || '{"x":0,"y":0,"zoom":1}'));
+  const validNodesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubNodes = onSnapshot(collection(db, "flowRules"), (snap) => {
       const validNodeIds = new Set(snap.docs.map(d => d.id));
+      validNodesRef.current = validNodeIds;
 
       let parsedNodes = snap.docs.map(d => {
         const data = d.data();
@@ -126,38 +128,41 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         return base;
       });
 
-      // 修正 TS6133 錯誤：將未使用的變數 'b' 改為 '_' 
       parsedNodes.sort((a, _) => (a.type === 'group' ? -1 : 1));
       setNodes(parsedNodes);
     });
     
     const unsubEdges = onSnapshot(collection(db, "flowEdges"), (snap) => {
       const uniqueEdges = new Map();
-      const duplicateIds: string[] = [];
+      const edgesToDelete: string[] = [];
 
       snap.docs.forEach(d => {
           const data = d.data();
-          const key = `${data.source}_${data.sourceHandle || 'none'}_${data.target}_${data.targetHandle || 'none'}`;
+          
+          if (!validNodesRef.current.has(data.source) || !validNodesRef.current.has(data.target)) {
+              edgesToDelete.push(d.id);
+              return;
+          }
+
+          const key = `${data.source}_${data.sourceHandle || 'default'}`;
           
           if (uniqueEdges.has(key)) {
               const existing = uniqueEdges.get(key);
               const existingTime = existing.createdAt?.toMillis?.() || 0;
               const newTime = data.createdAt?.toMillis?.() || 0;
-              
-              const isNewer = (newTime === 0 && existingTime !== 0) || (newTime > existingTime);
 
-              if (isNewer) {
-                  duplicateIds.push(existing.id);
+              if (newTime >= existingTime) {
+                  edgesToDelete.push(existing.id);
                   uniqueEdges.set(key, { id: d.id, ...data });
               } else {
-                  duplicateIds.push(d.id);
+                  edgesToDelete.push(d.id);
               }
           } else {
               uniqueEdges.set(key, { id: d.id, ...data });
           }
       });
 
-      duplicateIds.forEach(id => deleteDoc(doc(db, "flowEdges", id)).catch(() => {}));
+      edgesToDelete.forEach(id => deleteDoc(doc(db, "flowEdges", id)).catch(() => {}));
 
       setEdges(Array.from(uniqueEdges.values()).map(data => {
         const edgeObj: any = {
@@ -292,7 +297,6 @@ function FlowContent({ activePath }: { activePath?: { nodes: string[], edges: st
         parentNode: n.parentNode
       }));
 
-      // 修正 TS6133 錯誤：將未使用的變數 'b' 改為 '_'
       nodesToPublish.sort((a: any, _: any) => (a.type === 'group' ? -1 : 1));
 
       const edgesToPublish = flowObject.edges.map(e => ({
