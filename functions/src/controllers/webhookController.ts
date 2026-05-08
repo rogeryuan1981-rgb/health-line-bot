@@ -160,7 +160,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 break;
             case "flex":
                 reply = {
-                    type: "flex", altText: data.nodeName || "訊息送達",
+                    // 🚀 加入 data.altText 優先讀取
+                    type: "flex", altText: data.altText || data.nodeName || "訊息送達",
                     contents: {
                         type: "bubble", size: data.cardSize === 'sm' ? "micro" : "mega",
                         ...((data.imageUrl && data.imageUrl.startsWith('http')) ? { hero: { type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
@@ -172,7 +173,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const validCards = (data.cards || []).filter((c:any) => c.title || c.price || c.imageUrl || (c.buttons && c.buttons.length > 0));
                 if (validCards.length === 0) reply = { type: "text", text: "輪播卡片內容為空" };
                 else reply = {
-                    type: "flex", altText: data.nodeName || "請選擇項目",
+                    // 🚀 加入 data.altText 優先讀取
+                    type: "flex", altText: data.altText || data.nodeName || "請選擇項目",
                     contents: {
                         type: "carousel",
                         contents: validCards.map((card: any) => ({
@@ -196,7 +198,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const cUrl = (data.imageUrl || "").trim();
                 if (!vUrl.startsWith("http")) reply = { type: "text", text: "影片網址未設定或格式錯誤" };
                 else if (data.textContent) reply = {
-                    type: "flex", altText: "影音訊息",
+                    // 🚀 加入 data.altText 優先讀取
+                    type: "flex", altText: data.altText || "影音訊息",
                     contents: {
                         type: "bubble",
                         ...((cUrl && cUrl.startsWith('http')) ? { hero: { type: "image", url: cUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover", action: { type: "uri", uri: vUrl } } } : {}),
@@ -205,7 +208,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
                     }
                 };
                 else reply = {
-                    type: "template", altText: "影片訊息",
+                    // 🚀 加入 data.altText 優先讀取
+                    type: "template", altText: data.altText || "影片訊息",
                     template: { type: "buttons", ...((cUrl && cUrl.startsWith('http')) ? { thumbnailImageUrl: cUrl } : {}), title: "影音內容", text: "點擊觀看詳細影片", actions: [{ type: "uri", label: "📺 觀看影片", uri: vUrl }] }
                 };
                 break;
