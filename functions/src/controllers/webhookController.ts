@@ -5,13 +5,12 @@ import * as admin from "firebase-admin";
 if (!admin.apps.length) { admin.initializeApp(); }
 const db = admin.firestore();
 
-// ⚠️ 維持羅傑大大原本的 Token 寫法，已淨化不可見空白
+// ⚠️ 維持羅傑大大原本的 Token 寫法
 const client = new line.Client({ 
     channelAccessToken: "AYVtEDZdBNI2Uzy+4zu1+FhNHZ7Ly4b6v69Hz2swC3ntdpS+3vdLcMZmescCUSPCIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12fnVxs+Nrlcbg2sX/Tvkxj3ARK4kpd0myiKqEWLTL0ApgdB04t89/1O/w1cDnyilFU=", 
     channelSecret: "14c91b3caaa31d8583e3175dfb9c052f" 
 });
 
-// 🛡️ 安全防護：確保 altText 絕對不會超過 LINE 的 400 字元限制
 const getSafeAltText = (customText: string | undefined, fallbackText: string) => {
     let result = (customText && customText.trim() !== "") ? customText.trim() : fallbackText;
     return result.length > 400 ? result.substring(0, 395) + "..." : result;
@@ -40,12 +39,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const userId = event.source.userId;
         let targetNode: any = null;
 
-        // 🚀 引擎 1：全域攔截 (任意門)
+        // 🚀 引擎 1：全域攔截 (任意門) - 修正：加上 .data 層級
         targetNode = nodes.find((n: any) => 
-            n.isGlobal === true && n.nodeName && n.nodeName.trim() === userMsg
+            n.data?.isGlobal === true && n.data?.nodeName && n.data.nodeName.trim() === userMsg
         );
 
-        // 👉 引擎 2：狀態尋徑 (若沒命中全域字)
+        // 👉 引擎 2：狀態尋徑
         if (!targetNode) {
             const userStateSnap = await db.collection("userStates").doc(userId).get();
             if (userStateSnap.exists) {
@@ -53,7 +52,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const currentNode = nodes.find((n: any) => n.id === currentNodeId);
 
                 if (currentNode) {
-                    const options = currentNode.options || currentNode.buttons || [];
+                    // 🚀 修正：加上 .data 層級，並支援輪播卡片的按鈕陣列攤平
+                    let options = currentNode.data?.options || currentNode.data?.buttons || [];
+                    if (currentNode.data?.messageType === "carousel") {
+                        const arr = currentNode.data?.cards || [];
+                        options = arr.flatMap((c: any) => c.buttons || []);
+                    }
+
                     const matchedIndex = options.findIndex((opt: any) => 
                         (opt.target && opt.target.trim() === userMsg) ||
                         (opt.keyword && opt.keyword.trim() === userMsg) ||
@@ -70,20 +75,21 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
         }
 
-        // 👉 兜底防呆：回到預設回覆
+        // 👉 兜底防呆：回到預設回覆 - 修正：加上 .data 層級
         if (!targetNode) {
-            targetNode = nodes.find((n: any) => n.nodeName === "預設回覆");
+            targetNode = nodes.find((n: any) => n.data?.nodeName === "預設回覆");
         }
 
+        // 如果連預設回覆都找不到，安全下莊
         if (!targetNode) return null;
 
         // 👉 核心邏輯：處理「隱形節點」 (如 Time Router 時間分流)
         let currentNodeToRender = targetNode;
         let loopCount = 0;
 
-        while (currentNodeToRender && currentNodeToRender.messageType === "time_router" && loopCount < 5) {
+        while (currentNodeToRender && currentNodeToRender.data?.messageType === "time_router" && loopCount < 5) {
             loopCount++;
-            const config = currentNodeToRender.config || {};
+            const config = currentNodeToRender.data?.config || {};
             const isForceOff = config.forceOffHours === true;
 
             const now = new Date();
@@ -117,12 +123,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
         }
 
-        if (!currentNodeToRender || currentNodeToRender.messageType === "time_router") return null;
+        if (!currentNodeToRender || currentNodeToRender.data?.messageType === "time_router") return null;
 
         // ==========================================
         // 渲染節點內容 
         // ==========================================
-        const data = currentNodeToRender;
+        // 🚀 致命修正：把 data 指向真正的資料層 currentNodeToRender.data
+        const data = currentNodeToRender.data || {};
         let reply: any;
 
         const mapButtons = (btns: any[], style: string) => {
