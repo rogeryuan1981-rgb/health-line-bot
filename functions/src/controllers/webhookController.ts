@@ -5,11 +5,17 @@ import * as admin from "firebase-admin";
 if (!admin.apps.length) { admin.initializeApp(); }
 const db = admin.firestore();
 
-// ⚠️ 維持羅傑大大原本的 Token 寫法
+// ⚠️ 維持羅傑大大原本的 Token 寫法，已淨化不可見空白
 const client = new line.Client({ 
     channelAccessToken: "AYVtEDZdBNI2Uzy+4zu1+FhNHZ7Ly4b6v69Hz2swC3ntdpS+3vdLcMZmescCUSPCIwcPpeBw7UvJKEjsgRqBm8SJ1k4JFDfhUlCZ+ta/12fnVxs+Nrlcbg2sX/Tvkxj3ARK4kpd0myiKqEWLTL0ApgdB04t89/1O/w1cDnyilFU=", 
     channelSecret: "14c91b3caaa31d8583e3175dfb9c052f" 
 });
+
+// 🛡️ 安全防護：確保 altText 絕對不會超過 LINE 的 400 字元限制
+const getSafeAltText = (customText: string | undefined, fallbackText: string) => {
+    let result = (customText && customText.trim() !== "") ? customText.trim() : fallbackText;
+    return result.length > 400 ? result.substring(0, 395) + "..." : result;
+};
 
 export const handleWebhook = async (req: Request, res: Response) => {
     const events = req.body.events;
@@ -34,7 +40,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const userId = event.source.userId;
         let targetNode: any = null;
 
-        // 🚀 引擎 1：全域攔截 (任意門) - 嚴格限制只有 isGlobal 開啟時才生效
+        // 🚀 引擎 1：全域攔截 (任意門)
         targetNode = nodes.find((n: any) => 
             n.isGlobal === true && n.nodeName && n.nodeName.trim() === userMsg
         );
@@ -66,7 +72,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // 👉 兜底防呆：回到預設回覆
         if (!targetNode) {
-            targetNode = nodes.find((n: any) => n.nodeName === '預設回覆');
+            targetNode = nodes.find((n: any) => n.nodeName === "預設回覆");
         }
 
         if (!targetNode) return null;
@@ -75,17 +81,16 @@ export const handleWebhook = async (req: Request, res: Response) => {
         let currentNodeToRender = targetNode;
         let loopCount = 0;
 
-        while (currentNodeToRender && currentNodeToRender.messageType === 'time_router' && loopCount < 5) {
+        while (currentNodeToRender && currentNodeToRender.messageType === "time_router" && loopCount < 5) {
             loopCount++;
             const config = currentNodeToRender.config || {};
             const isForceOff = config.forceOffHours === true;
 
-            // 取得精準的台灣時間 (UTC+8)
             const now = new Date();
             const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
             const twDate = new Date(utc + (3600000 * 8));
-            const hours = String(twDate.getHours()).padStart(2, '0');
-            const mins = String(twDate.getMinutes()).padStart(2, '0');
+            const hours = String(twDate.getHours()).padStart(2, "0");
+            const mins = String(twDate.getMinutes()).padStart(2, "0");
             const currentTwTimeStr = `${hours}:${mins}`;
 
             let isBusiness = false;
@@ -102,7 +107,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 }
             }
 
-            const handleToFollow = isBusiness ? 'business' : 'off-hours';
+            const handleToFollow = isBusiness ? "business" : "off-hours";
             const nextEdge = edges.find((e: any) => e.source === currentNodeToRender.id && e.sourceHandle === handleToFollow);
 
             if (nextEdge) {
@@ -112,7 +117,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             }
         }
 
-        if (!currentNodeToRender || currentNodeToRender.messageType === 'time_router') return null;
+        if (!currentNodeToRender || currentNodeToRender.messageType === "time_router") return null;
 
         // ==========================================
         // 渲染節點內容 
@@ -125,11 +130,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
             if (validBtns.length === 0) return [];
             return validBtns.map((btn: any) => {
                 const target = (btn.target || "").trim();
-                const isUriAction = target.toLowerCase().startsWith('http') || target.toLowerCase().startsWith('tel:');
+                const isUriAction = target.toLowerCase().startsWith("http") || target.toLowerCase().startsWith("tel:");
                 return {
                     type: "button", height: "sm",
-                    style: style === 'link' ? "link" : "primary",
-                    color: style === 'link' ? "#5584C0" : "#06C755", 
+                    style: style === "link" ? "link" : "primary",
+                    color: style === "link" ? "#5584C0" : "#06C755", 
                     action: isUriAction 
                         ? { type: "uri", label: btn.label || "開啟連結", uri: target } 
                         : { type: "message", label: btn.label || "選擇", text: target || btn.label || "無效指令" } 
@@ -160,11 +165,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 break;
             case "flex":
                 reply = {
-                    // 🚀 加入 data.altText 優先讀取
-                    type: "flex", altText: data.altText || data.nodeName || "訊息送達",
+                    type: "flex", 
+                    altText: getSafeAltText(data.altText, data.nodeName || "訊息送達"),
                     contents: {
-                        type: "bubble", size: data.cardSize === 'sm' ? "micro" : "mega",
-                        ...((data.imageUrl && data.imageUrl.startsWith('http')) ? { hero: { type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
+                        type: "bubble", size: data.cardSize === "sm" ? "micro" : "mega",
+                        ...((data.imageUrl && data.imageUrl.startsWith("http")) ? { hero: { type: "image", url: data.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
                         body: buildFlexBody(data.textContent, data.buttons || data.options, data.btnStyle)
                     }
                 };
@@ -173,13 +178,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const validCards = (data.cards || []).filter((c:any) => c.title || c.price || c.imageUrl || (c.buttons && c.buttons.length > 0));
                 if (validCards.length === 0) reply = { type: "text", text: "輪播卡片內容為空" };
                 else reply = {
-                    // 🚀 加入 data.altText 優先讀取
-                    type: "flex", altText: data.altText || data.nodeName || "請選擇項目",
+                    type: "flex", 
+                    altText: getSafeAltText(data.altText, data.nodeName || "請選擇項目"),
                     contents: {
                         type: "carousel",
                         contents: validCards.map((card: any) => ({
-                            type: "bubble", size: data.cardSize === 'sm' ? "micro" : "mega",
-                            ...((card.imageUrl && card.imageUrl.startsWith('http')) ? { hero: { type: "image", url: card.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
+                            type: "bubble", size: data.cardSize === "sm" ? "micro" : "mega",
+                            ...((card.imageUrl && card.imageUrl.startsWith("http")) ? { hero: { type: "image", url: card.imageUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" } } : {}),
                             body: {
                                 type: "box", layout: "vertical", spacing: "sm",
                                 contents: [
@@ -198,19 +203,19 @@ export const handleWebhook = async (req: Request, res: Response) => {
                 const cUrl = (data.imageUrl || "").trim();
                 if (!vUrl.startsWith("http")) reply = { type: "text", text: "影片網址未設定或格式錯誤" };
                 else if (data.textContent) reply = {
-                    // 🚀 加入 data.altText 優先讀取
-                    type: "flex", altText: data.altText || "影音訊息",
+                    type: "flex", 
+                    altText: getSafeAltText(data.altText, "影音訊息"),
                     contents: {
                         type: "bubble",
-                        ...((cUrl && cUrl.startsWith('http')) ? { hero: { type: "image", url: cUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover", action: { type: "uri", uri: vUrl } } } : {}),
+                        ...((cUrl && cUrl.startsWith("http")) ? { hero: { type: "image", url: cUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover", action: { type: "uri", uri: vUrl } } } : {}),
                         body: { type: "box", layout: "vertical", contents: [{ type: "text", text: data.textContent, wrap: true, size: "sm" }] },
                         footer: { type: "box", layout: "vertical", contents: [{ type: "button", style: "primary", color: "#FF0000", action: { type: "uri", label: "📺 觀看影片", uri: vUrl } }] }
                     }
                 };
                 else reply = {
-                    // 🚀 加入 data.altText 優先讀取
-                    type: "template", altText: data.altText || "影片訊息",
-                    template: { type: "buttons", ...((cUrl && cUrl.startsWith('http')) ? { thumbnailImageUrl: cUrl } : {}), title: "影音內容", text: "點擊觀看詳細影片", actions: [{ type: "uri", label: "📺 觀看影片", uri: vUrl }] }
+                    type: "template", 
+                    altText: getSafeAltText(data.altText, "影片訊息"),
+                    template: { type: "buttons", ...((cUrl && cUrl.startsWith("http")) ? { thumbnailImageUrl: cUrl } : {}), title: "影音內容", text: "點擊觀看詳細影片", actions: [{ type: "uri", label: "📺 觀看影片", uri: vUrl }] }
                 };
                 break;
             case "text":
@@ -219,7 +224,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
 
         try {
-            // 👉 推播前：更新使用者所在的節點位置
             await db.collection("userStates").doc(userId).set({
                 currentNodeId: currentNodeToRender.id,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
