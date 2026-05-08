@@ -49,7 +49,7 @@ export function BubbleContent({ data, onAction }: { data: any, onAction?: (text:
                 <div className={`flex flex-col gap-1 mt-3 ${isLinkStyle ? 'divide-y divide-gray-100' : ''}`}>
                     {data.buttons.map((btn: any, i: number) => (
                     isLinkStyle ? (
-                        <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="text-[#5584C0] text-center py-3 text-xs font-bold cursor-pointer hover:bg-slate-50">{btn.label || `選項 ${i+1}`} ▶▶</div>
+                        <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="text-[#5584C0] text-center py-3 text-xs font-bold cursor-pointer hover:bg-slate-50">{btn.label || `選項 ${i+1}`}</div>
                     ) : (
                         <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="bg-[#06C755] text-white text-center py-2 rounded-lg text-[10px] font-bold shadow-sm cursor-pointer hover:brightness-110">{btn.label || "選擇"}</div>
                     )))}
@@ -70,7 +70,7 @@ export function BubbleContent({ data, onAction }: { data: any, onAction?: (text:
                         <div className={`flex flex-col gap-1 pt-2 mt-auto ${isLinkStyle ? 'divide-y divide-gray-100 border-t border-gray-100' : ''}`}>
                         {card.buttons.map((btn: any, i: number) => (
                             isLinkStyle ? (
-                                <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="text-[#5584C0] text-center py-2 text-[10px] font-bold cursor-pointer hover:bg-slate-50">{btn.label || `選項`} ▶▶</div>
+                                <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="text-[#5584C0] text-center py-2 text-[10px] font-bold cursor-pointer hover:bg-slate-50">{btn.label || `選項`}</div>
                             ) : (
                                 <div key={i} onClick={() => onAction && onAction(btn.target || btn.label)} className="bg-[#06C755] text-white text-center py-2 rounded-lg text-[10px] font-bold shadow-sm cursor-pointer hover:brightness-110">{btn.label || "按鈕"}</div>
                             )
