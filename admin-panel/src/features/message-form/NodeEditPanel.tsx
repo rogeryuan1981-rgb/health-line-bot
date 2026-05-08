@@ -237,6 +237,18 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
 
                     {nodeData.messageType === "flex" && (
                         <div className="space-y-4">
+                          <div className="space-y-2 mb-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">列表預覽文字 (altText)</label>
+                            </div>
+                            <input 
+                                value={nodeData.altText || ""} 
+                                disabled={isReadOnly} 
+                                onChange={e => setNodeData({...nodeData, altText: e.target.value})} 
+                                className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" 
+                                placeholder="顯示在 LINE 聊天列表的文字（如：請查看最新資訊）" 
+                            />
+                        </div>
                             <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: "md"})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==="md"?"bg-slate-700 text-white":"text-slate-500"}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: "sm"})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==="sm"?"bg-slate-700 text-white":"text-slate-500"}`}><Minimize2 size={12}/> 微型</button></div>
                             <div className="space-y-2"><div className="flex justify-between items-center"><label className="text-[10px] font-bold text-slate-500 uppercase">卡片圖片</label>{!isReadOnly && <button onClick={() => setActiveLib(activeLib==="fImg"?"null":"fImg")} className="text-[#deff9a] text-[10px] flex items-center gap-1"><Library size={12}/> 資源庫</button>}</div><input value={nodeData.imageUrl || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, imageUrl: e.target.value})} className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" />{activeLib==="fImg" && renderLibraryDropdown((url)=>setNodeData({...nodeData, imageUrl:url}))}</div>
                             <textarea value={nodeData.textContent || ""} disabled={isReadOnly} onChange={e => setNodeData({...nodeData, textContent: e.target.value})} className="w-full bg-slate-900 rounded-xl p-4 text-sm min-h-[80px]" placeholder="卡片內文" />
@@ -245,6 +257,18 @@ export default function NodeEditPanel({ nodeId, onClose, isReadOnly = false, sou
 
                     {nodeData.messageType === "carousel" && (
                         <div className="space-y-4 animate-in fade-in">
+                                                    <div className="space-y-2 mb-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">列表預覽文字 (altText)</label>
+                            </div>
+                            <input 
+                                value={nodeData.altText || ""} 
+                                disabled={isReadOnly} 
+                                onChange={e => setNodeData({...nodeData, altText: e.target.value})} 
+                                className="w-full bg-slate-900 rounded-xl px-4 py-2 text-xs" 
+                                placeholder="顯示在 LINE 聊天列表的文字（如：請查看最新資訊）" 
+                            />
+                        </div>
                             <div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: "md"})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==="md"?"bg-slate-700 text-white":"text-slate-500"}`}><Maximize2 size={12}/> 標準</button><button disabled={isReadOnly} onClick={() => setNodeData({...nodeData, cardSize: "sm"})} className={`flex-1 py-2 rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 ${nodeData.cardSize==="sm"?"bg-slate-700 text-white":"text-slate-500"}`}><Minimize2 size={12}/> 微型</button></div>
                             
                             <div className="space-y-4">
